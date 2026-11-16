@@ -19,7 +19,7 @@ function translator(dictionary: Record<PluginMarketLocaleKey, string>): PluginDe
   return (key: string) => strings[key] ?? COMMON[key] ?? key
 }
 
-const REQUEST: DetailRequest = { url: 'https://a.example/index.json', name: 'a', version: '1.0.0', npm: true }
+const REQUEST: DetailRequest = { url: 'https://a.example/index.json', name: 'a', version: '1.0.0' }
 const DOCUMENT = brandString<PluginDetailDocumentId>('doc')
 
 function setup(initial: DetailsState = {}, language = 'en') {

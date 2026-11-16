@@ -14,9 +14,9 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     /** The display language is not a BCP 47 language id. */
     'plugin-manager/invalid-language': { readonly language: string }
     /**
-     * A bundle's detail document or image exists but cannot be read: `too-large` beyond a size limit, `network` when the
-     * npm file CDNs cannot be reached, `invalid` for a malformed locale file or `meta.detail`, or a named file that does
-     * not exist. Bundle files come from local directories and public CDNs, which never answer `denied`.
+     * A bundle's detail document or image exists but cannot be read: `too-large` beyond a size limit, or `invalid` for a
+     * malformed locale file or `meta.detail`, or a named file that does not exist. Bundle files come from local
+     * directories, which never answer `network` or `denied`.
      */
     'plugin-manager/detail-unavailable': { readonly reason: DetailFailureReason }
   }

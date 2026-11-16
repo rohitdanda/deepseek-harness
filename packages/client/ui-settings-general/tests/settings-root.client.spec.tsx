@@ -12,7 +12,6 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SettingsRootComponentProps } from '../src/client/shell-contract.ts'
 import { SettingsRoot } from '../src/client/SettingsRoot.tsx'
 import { en, zh } from '../src/client/locales.ts'
-import type { DesktopUpdateView } from '../src/types.ts'
 import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { brandString } from '@deepseek-ai/dsh-brand'
 
@@ -57,7 +56,6 @@ function mount({
   wide = true,
   dictionary = en,
   connectionState = 'connected',
-  desktopUpdate = { failed: false, opening: false },
   onboardingActive = true,
   mainView = true,
   rows = [
@@ -74,7 +72,6 @@ function mount({
   wide?: boolean
   dictionary?: typeof en | typeof zh
   connectionState?: ConnectionSnapshot
-  desktopUpdate?: DesktopUpdateView
   onboardingActive?: boolean
   mainView?: boolean
   rows?: Row[]
@@ -121,8 +118,6 @@ function mount({
     useContextMenu: contextMenuHook(),
     wide,
     reconnect,
-    openDesktopUpdate: () => {},
-    useDesktopUpdate: select => select(desktopUpdate),
     t: makeTranslate(dictionary),
     useConnectionState: (select) => {
       const [, force] = useState(0)
@@ -158,10 +153,6 @@ function mount({
       for (const fn of [...connectionListeners]) fn()
     })
   }
-  const setDesktopUpdate = (next: DesktopUpdateView) => {
-    desktopUpdate = next
-    view.rerender(<SettingsRoot {...props} />)
-  }
   const setShortcuts = (next: readonly ShortcutCatalogEntry[]) => {
     shortcuts = next
     view.rerender(<SettingsRoot {...props} />)
@@ -173,7 +164,7 @@ function mount({
     act(() => { sessions.byId[activeId] = { ...session, blank: next } })
     view.rerender(<SettingsRoot {...props} />)
   }
-  return { view, renderSlot, bump, listeners, reconnect, setConnectionState, setDesktopUpdate, setShortcuts, setOnboardingActive }
+  return { view, renderSlot, bump, listeners, reconnect, setConnectionState, setShortcuts, setOnboardingActive }
 }
 
 function openPanel() {
@@ -184,17 +175,6 @@ function openPanel() {
 }
 
 describe('SettingsRoot trigger', () => {
-  it('shows installation instead of expected backend reconnection and restores connection feedback after failure', () => {
-    const presentation = { phase: 'installing' as const, version: '1.0.1' }
-    const f = mount({ dictionary: zh, connectionState: 'connecting',
-      desktopUpdate: { failed: false, opening: false, presentation } })
-    expect(screen.getByRole('button', { name: '正在准备重启…' })).toBeTruthy()
-    expect(screen.queryByText('重新连接中')).toBeNull()
-    f.setDesktopUpdate({ failed: false, opening: false,
-      presentation: { phase: 'error', version: presentation.version, failure: 'install' } })
-    expect(screen.queryByRole('button', { name: '重试更新' })).toBeNull()
-    expect(screen.getByText('重新连接中')).toBeTruthy()
-  })
   it.each([
     { column: 'expanded English', wide: true, dictionary: en, name: 'Settings' },
     { column: 'collapsed English', wide: false, dictionary: en, name: 'Settings' },
@@ -513,23 +493,23 @@ it('explicitly reopens one onboarding editor during an existing session', () => 
   expect(screen.queryByTestId('onboarding')).toBeNull()
 })
 
-it('opens Account from the contributed sidebar launcher', () => {
-  const { renderSlot } = mount({ rows: [{ id: 'account', order: -10, label: 'Account' }] })
+it('opens Settings from the contributed sidebar launcher', () => {
+  const { renderSlot } = mount({ rows: [{ id: 'general', order: 0, label: 'General' }] })
   const launcher = renderSlot.mock.calls.find(call => call[0] === 'settings.launcher')!
   expect(launcher[1]).toMatchObject({ settingsOpen: false })
   act(() => { (launcher[1] as { openSettings: () => void }).openSettings() })
-  expect(screen.getByTestId('section-account')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Account' }).querySelector('svg')).not.toBeNull()
+  expect(screen.getByTestId('section-general')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'General' }).querySelector('svg')).not.toBeNull()
   expect(renderSlot.mock.calls.filter(call => call[0] === 'settings.launcher').at(-1)?.[1]).toMatchObject({ settingsOpen: true })
   fireEvent.keyDown(document, { key: 'Escape' })
   expect(renderSlot.mock.calls.filter(call => call[0] === 'settings.launcher').at(-1)?.[1]).toMatchObject({ settingsOpen: false })
 })
 
 it('opens the section requested by the contributed sidebar launcher', () => {
-  const { renderSlot } = mount({ rows: [{ id: 'general', order: 0, label: 'General' }, { id: 'account', order: 1, label: 'Account' }] })
+  const { renderSlot } = mount({ rows: [{ id: 'general', order: 0, label: 'General' }, { id: 'models', order: 1, label: 'Models' }] })
   const launcher = renderSlot.mock.calls.find(call => call[0] === 'settings.launcher')!
-  act(() => { (launcher[1] as { openSettings: (sectionId?: string) => void }).openSettings('account') })
-  expect(screen.getByTestId('section-account')).toBeTruthy()
+  act(() => { (launcher[1] as { openSettings: (sectionId?: string) => void }).openSettings('models') })
+  expect(screen.getByTestId('section-models')).toBeTruthy()
   expect(screen.queryByTestId('section-general')).toBeNull()
 })
 

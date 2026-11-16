@@ -35,7 +35,7 @@ The formatter reads the committed raw log, so a compaction surface replacement n
 
 The clipboard is one browser-wide destination, so this plugin instance runs one copy at a time. On hosts with `ClipboardItem` and `navigator.clipboard.write`, the write starts synchronously from the click with a promised `text/plain` Blob while the transcript is read; other hosts fall back to the shared clipboard helper after preparation. A request made while a copy is pending joins that operation and keeps the first click's Session. Every Session Header menu disables its copy row until the operation settles; unrelated actions remain available. Success, preparation-failure, or clipboard-failure feedback uses the root overlay toast. Disposal aborts the read and prevents later text from reaching the Blob; an operating-system clipboard write already accepted cannot be rolled back.
 
-When `ui-message-feedback` is mounted, the same menu also offers `Feedback`, which opens its existing Session feedback dialog. Opening or dismissing that form does not export the Session or submit feedback. The feedback row follows the feedback plugin’s availability; both export actions remain independently available. [`ui-open-in-app`](../../client/ui-open-in-app/README.md) contributes its application submenu in a separated group after download and before feedback.
+[`ui-open-in-app`](../../client/ui-open-in-app/README.md) contributes its application submenu to the same menu in a separated group after download.
 
 ### When to choose it
 
@@ -100,7 +100,7 @@ This section explains how the package wires the export control and points at the
 
 The package has two halves. The Host half ([`src/index.ts`](src/index.ts)) registers the `/export` command and contributes the exact `GET`/`HEAD /api/session.export` and `/api/session.markdown` Fetch routes to Connection; [`src/archive.ts`](src/archive.ts) builds the bounded ZIP stream, and [`src/markdown.ts`](src/markdown.ts) renders the Markdown transcript. The browser half ([`src/client/index.ts`](src/client/index.ts)) provides the shared download and Markdown copy controllers and UI, and observes `command/executed` so only the submitting browser starts a download.
 
-The shared context-menu package declares the captured `sessionHeader` target, independent of Session-row and title context actions; the conversation package owns its Header trigger. This package contributes export and optional feedback rows that observe controller, availability, and locale sources. Its download dialog and copy toast mount in the root overlay independently of the Header lifetime.
+The shared context-menu package declares the captured `sessionHeader` target, independent of Session-row and title context actions; the conversation package owns its Header trigger. This package contributes export rows that observe controller and locale sources. Its download dialog and copy toast mount in the root overlay independently of the Header lifetime.
 
 ### Download flow
 

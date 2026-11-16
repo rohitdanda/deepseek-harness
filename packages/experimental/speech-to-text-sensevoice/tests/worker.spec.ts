@@ -10,7 +10,6 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { Config } from '../src/config.ts'
 import { SenseVoiceWorker } from '../src/recognizer.ts'
 import { inspectRuntime, prepareRuntime } from '../src/runtime.ts'
-import { SpeechDownloadError } from '../src/download-error.ts'
 
 vi.mock('../src/runtime.ts', () => ({ inspectRuntime: vi.fn(), prepareRuntime: vi.fn() }))
 const cleanup: Array<() => Promise<void>> = []
@@ -23,7 +22,7 @@ async function fixture(overrides: Partial<Config> = {}) {
   cleanup.push(async () => { await ctx.fiber.dispose() })
   await ctx.plugin(LocalSubprocess)
   const spawn = vi.spyOn(ctx.get('subprocess')!, 'spawn')
-  const config = Config({ dataRoot: root, idleTimeoutMs: 0, ...overrides })
+  const config = Config({ dataRoot: root, modelDirectory: root, vadModelPath: join(root, 'silero_vad.onnx'), idleTimeoutMs: 0, ...overrides })
   vi.mocked(prepareRuntime).mockImplementation(async () => ({ tokens: root,
     worker: fileURLToPath(new URL('./worker.fixture.mjs', import.meta.url)), model: root, vad: root }))
   const worker = new SenseVoiceWorker(ctx, config)
@@ -63,36 +62,18 @@ it('keeps one worker warm across recordings and joins its exit on disposal', asy
   await expect(worker.transcribe({ audio, language: 'en' }, signal())).rejects.toThrow('disposed')
 })
 
-it('pins a manual source to one preparation without changing deployment defaults', async () => {
-  const { worker } = await fixture()
-  expect(worker.downloadSources).toEqual(['https://huggingface.co', 'https://hf-mirror.com'])
-  worker.prepare({ downloadSource: 'https://hf-mirror.com' })
-  await vi.waitFor(() => { expect(worker.snapshot().phase).toBe('ready') })
-  expect(prepareRuntime).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ modelOrigin: 'https://hf-mirror.com' }),
-    expect.any(AbortSignal), expect.any(Function))
-})
 
-it('rejects unadvertised sources and preserves private and offline deployments', async () => {
-  const { worker } = await fixture({ modelOrigin: 'https://private.example/' })
-  expect(worker.downloadSources).toEqual(['https://private.example'])
-  expect(() => { worker.prepare({ downloadSource: 'https://hf-mirror.com' }) }).toThrow('unavailable')
-  expect(prepareRuntime).not.toHaveBeenCalled()
-  const offline = await fixture({ modelDirectory: process.cwd(), vadModelPath: process.cwd() })
-  expect(offline.worker.downloadSources).toEqual([])
-  expect(() => { offline.worker.prepare({ downloadSource: 'https://huggingface.co' }) }).toThrow('unavailable')
-})
 
-it('joins matching requests and refuses to change the source of active preparation', async () => {
+it('joins repeated preparation requests and cancels the active task', async () => {
   const { worker } = await fixture(), entered = Promise.withResolvers<undefined>()
   vi.mocked(prepareRuntime).mockImplementation(async (_ctx, _config, signal) => {
     entered.resolve(undefined)
     await new Promise((_resolve, reject) => { signal.addEventListener('abort', () => { reject(new Error('preparation cancelled')) }, { once: true }) })
     throw new Error('unreachable')
   })
-  worker.prepare({ downloadSource: 'https://hf-mirror.com' })
+  worker.prepare()
   await entered.promise
-  worker.prepare({ downloadSource: 'https://hf-mirror.com' })
-  expect(() => { worker.prepare({ downloadSource: 'https://huggingface.co' }) }).toThrow('Cancel preparation')
+  worker.prepare()
   expect(prepareRuntime).toHaveBeenCalledOnce()
   await worker.cancel()
   expect(worker.snapshot().phase).toBe('cancelled')
@@ -238,9 +219,9 @@ it('cancels Host preparation, retains retry admission, and exposes preparation f
   await worker.cancel()
   expect(worker.snapshot().phase).toBe('cancelled')
   await worker.cancel()
-  vi.mocked(prepareRuntime).mockRejectedValueOnce(new Error('download unavailable'))
+  vi.mocked(prepareRuntime).mockRejectedValueOnce(new Error('model files unavailable'))
   worker.prepare()
-  await vi.waitFor(() => { expect(worker.snapshot()).toMatchObject({ phase: 'failed', message: 'download unavailable' }) })
+  await vi.waitFor(() => { expect(worker.snapshot()).toMatchObject({ phase: 'failed', message: 'model files unavailable' }) })
   worker.prepare()
   await vi.waitFor(() => { expect(worker.snapshot().phase).toBe('ready') }, { timeout: 10000 })
 })
@@ -253,17 +234,6 @@ it('recovers after a provider error or unexpected worker exit', async () => {
   expect((await worker.transcribe({ audio, language: 'zh' }, signal())).text).toBe('zh')
 })
 
-it('publishes safe download diagnostics and clears them after a successful retry', async () => {
-  const { worker } = await fixture()
-  const download = { resource: 'model.int8.onnx', source: 'https://mirror.example', reason: 'dns' as const, code: 'ENOTFOUND' }
-  vi.mocked(prepareRuntime).mockRejectedValueOnce(new SpeechDownloadError(download, { cause: new Error('private details') }))
-  worker.prepare()
-  await vi.waitFor(() => { expect(worker.snapshot()).toMatchObject({ phase: 'failed', download }) })
-  expect(JSON.stringify(worker.snapshot())).not.toContain('private details')
-  await prepare(worker)
-  expect(worker.snapshot()).toMatchObject({ phase: 'ready' })
-  expect(worker.snapshot()).not.toHaveProperty('download')
-})
 
 it('applies inference deadlines and reports runtime preparation failure', async () => {
   const { worker } = await fixture({ inferenceTimeoutMs: 100 })
@@ -278,30 +248,6 @@ it('applies inference deadlines and reports runtime preparation failure', async 
   await expect(fresh.worker.transcribe({ audio, language: 'zh' }, signal())).rejects.toThrow('Prepare')
 })
 
-it('retains complete download snapshots while throttling only intermediate notifications', async () => {
-  const { worker } = await fixture({ progressIntervalMs: 100 })
-  const now = vi.spyOn(performance, 'now').mockReturnValue(0)
-  const runtime = vi.mocked(prepareRuntime).getMockImplementation()!
-  const updates: unknown[] = []
-  worker.subscribe(() => { updates.push(worker.snapshot()) })
-  vi.mocked(prepareRuntime).mockImplementationOnce(async (ctx, config, signal, report) => {
-    report!({ phase: 'downloading', resource: 'model', completedBytes: 0, totalBytes: 10 })
-    report!({ phase: 'downloading', resource: 'model', completedBytes: 2, totalBytes: 10 })
-    expect(worker.snapshot()).toMatchObject({ phase: 'downloading', resource: 'model', completedBytes: 2, totalBytes: 10 })
-    expect(updates).not.toContainEqual(worker.snapshot())
-    now.mockReturnValue(101)
-    report!({ phase: 'downloading', resource: 'model', completedBytes: 5, totalBytes: 10 })
-    report!({ phase: 'downloading', resource: 'model', completedBytes: 10, totalBytes: 10 })
-    report!({ phase: 'downloading', resource: 'vad', completedBytes: 0, totalBytes: 10 })
-    return await runtime(ctx, config, signal, report)
-  })
-  try {
-    worker.prepare()
-    await vi.waitFor(() => { expect(worker.snapshot().phase).toBe('ready') }, { timeout: 10000 })
-    expect(updates).toContainEqual(expect.objectContaining({ phase: 'downloading', resource: 'model', completedBytes: 10, totalBytes: 10 }))
-    expect(updates).toContainEqual(expect.objectContaining({ phase: 'downloading', resource: 'vad', completedBytes: 0, totalBytes: 10 }))
-  } finally { now.mockRestore() }
-})
 
 it('joins a worker that exits before readiness and exposes retryable preparation errors', async () => {
   const { worker, spawn, root } = await fixture()
@@ -310,9 +256,9 @@ it('joins a worker that exits before readiness and exposes retryable preparation
   await vi.waitFor(() => { expect(worker.snapshot().phase).toBe('failed') }, { timeout: 10000 })
   expect(await (spawn.mock.results[0]!.value as SubprocessHandle).waitForExit()).toBe(true)
   const next = await fixture()
-  vi.mocked(prepareRuntime).mockRejectedValueOnce('download interrupted')
+  vi.mocked(prepareRuntime).mockRejectedValueOnce('preparation interrupted')
   next.worker.prepare()
-  await vi.waitFor(() => { expect(next.worker.snapshot()).toMatchObject({ phase: 'failed', message: 'download interrupted' }) })
+  await vi.waitFor(() => { expect(next.worker.snapshot()).toMatchObject({ phase: 'failed', message: 'preparation interrupted' }) })
 })
 
 it('reclaims the process range after an unexpected idle exit before replacing the worker', async () => {
@@ -352,33 +298,26 @@ it('retains a worker whose idle cleanup cannot observe exit until that range is 
   }
 })
 
-it('retains completed preparation steps when cancellation settles the active step', async () => {
+it('retains the check step when cancellation settles the active step', async () => {
   const { worker } = await fixture(), entered = Promise.withResolvers<undefined>()
-  vi.mocked(prepareRuntime).mockImplementationOnce(async (_ctx, _config, signal, report) => {
-    for (const step of ['model', 'vad'] as const) report!({ phase: 'downloading', step, resource: step, completedBytes: 1, totalBytes: 1 })
-    report!({ phase: 'checking', step: 'verify', startedAt: Date.now() })
-    const before = worker.snapshot().steps?.find(step => step.kind === 'verify')?.startedAt
-    report!({ phase: 'checking', step: 'verify', startedAt: Date.now() })
-    expect(worker.snapshot().steps?.find(step => step.kind === 'verify')?.startedAt).toBe(before)
+  vi.mocked(prepareRuntime).mockImplementationOnce(async (_ctx, _config, signal) => {
     entered.resolve(undefined)
     return await new Promise((_resolve, reject) => {
       signal.addEventListener('abort', () => { reject(new Error('setup cancelled')) }, { once: true })
     })
   })
   worker.prepare(); await entered.promise
-  expect(worker.snapshot().steps?.map(step => [step.kind, step.status])).toEqual([
-    ['check', 'complete'], ['model', 'complete'], ['vad', 'complete'], ['verify', 'running'], ['load', 'pending'],
-  ])
+  expect(worker.snapshot().steps?.map(step => [step.kind, step.status])).toEqual([['check', 'running'], ['load', 'pending']])
   await worker.cancel()
-  expect(worker.snapshot().steps?.find(step => step.kind === 'verify')?.status).toBe('cancelled')
+  expect(worker.snapshot().steps?.find(step => step.kind === 'check')?.status).toBe('cancelled')
   worker.prepare()
   await vi.waitFor(() => { expect(worker.snapshot().phase).toBe('ready') }, { timeout: 10000 })
   expect(worker.snapshot().steps?.every(step => step.status === 'complete')).toBe(true)
 })
 
-it('omits preparation steps supplied by explicit deployment paths', async () => {
-  const { worker } = await fixture({ modelDirectory: process.cwd(), vadModelPath: process.cwd() })
-  expect(worker.snapshot().steps?.map(step => step.kind)).toEqual(['check', 'verify', 'load'])
+it('publishes only the check and load preparation steps', async () => {
+  const { worker } = await fixture()
+  expect(worker.snapshot().steps?.map(step => step.kind)).toEqual(['check', 'load'])
   worker.prepare()
   await vi.waitFor(() => { expect(worker.snapshot().phase).toBe('ready') }, { timeout: 10000 })
 })

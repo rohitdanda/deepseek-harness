@@ -6,11 +6,11 @@ English | [中文](2026-10-08-desktop-shell-configuration.zh.md)
 
 ## Problem
 
-Desktop updates and native recovery can run before the Host starts or while it is unavailable. Depending on Host configuration prevents these functions from resolving their preferences when needed. A shared settings page does not identify which process owns each preference.
+Native recovery and other shell functions can run before the Host starts or while it is unavailable. Depending on Host configuration prevents these functions from resolving their preferences when needed. A shared settings page does not identify which process owns each preference.
 
 ## Decision
 
-Electron main owns `userData/desktop/settings.json` independently of Host startup and Cordis evaluation. The test authentication popup switch uses this file; the [Desktop reference](../../../../apps/desktop/README.md#local-desktop-settings) owns its fields and behavior.
+Electron main owns shell state under `userData/desktop` independently of Host startup and Cordis evaluation; the [Desktop reference](../../../../apps/desktop/README.md) owns its files and behavior.
 
 Ownership follows runtime dependencies: Electron-owned functions needing configuration before Host startup or while the Host is unavailable use shell configuration. Host plugin settings, including shared Web/Desktop preferences, continue to use Cordis. Displaying a setting in Desktop alone does not justify shell ownership. A unified settings interface can use separate storage owners.
 

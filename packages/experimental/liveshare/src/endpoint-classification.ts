@@ -82,24 +82,14 @@ export const VIEWER_ENDPOINT_CLASSES = {
   // No reader role names these, so the conservative class is owner-only. A share's method policy
   // decides whether one installed plugin's method reaches its viewers; this table only decides what
   // the core share roles grant.
-  'account/cancelSignIn': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/getBalance': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/getProfile': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/getState': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/getNotificationContent': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/getNotifications': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/reportNotificationEvent': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/hasRunningAccountTasks': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/signOut': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/startSignIn': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/watch': 'owner-only', // owner account and sign-in; the served page never reads it
-  'account/watchExpiry': 'owner-only', // owner account and sign-in; the served page never reads it
+  'authorization/begin': 'owner-only', // owner authorization flows; the served page never reads them
+  'authorization/signOut': 'owner-only', // owner authorization flows; the served page never reads them
+  'authorization/status': 'owner-only', // owner authorization flows; the served page never reads them
   'job/follow': 'owner-only', // owner background jobs'
   'job/kill': 'owner-only', // owner background jobs
   'job/list': 'owner-only', // owner background jobs'
   'fileReferences/list': 'owner-only', // owner file references'
   'session/create': 'owner-only', // owner creates a Session
-  'session/initializeDefaultModel': 'owner-only', // owner initializes a Session default model
   'session/openWorkspacePath': 'owner-only', // owner opens a Workspace path
   'session/search': 'owner-only', // owner searches across Sessions
   'session/selectModel': 'owner-only', // owner selects a Session model
@@ -162,10 +152,6 @@ export const VIEWER_ENDPOINT_CLASSES = {
   'pluginMarket/readEntryDetail': 'owner-only', // owner plugin market
   'pluginMarket/search': 'owner-only', // owner plugin market
   'pluginMarket/setIndexes': 'owner-only', // owner plugin market
-  'productAnalytics/enabled': 'owner-only', // owner product analytics
-  'productAnalytics/report': 'owner-only', // owner product analytics
-  'productAnalytics/watchPolicy': 'owner-only', // owner product analytics
-  'pluginRegistryProbe/fastest': 'owner-only', // owner plugin registry probe
   'sessionReferenceResolver/candidates': 'owner-only', // owner composer reference resolution
   'officeKit/generation': 'owner-only', // owner document export
   'officeKit/render': 'owner-only', // owner document export
@@ -200,10 +186,6 @@ export const VIEWER_ENDPOINT_CLASSES = {
   'dynamicCordisRunner/stopFromPanel': 'owner-only', // owner dynamic plugin runner
   'dynamicCordisRunner/syncInspectManifest': 'owner-only', // owner dynamic plugin runner
   'dynamicCordisRunner/undefineFromPanel': 'owner-only', // owner dynamic plugin runner
-  'sessionFeedback/record': 'owner-only', // owner command feedback
-  'messageFeedback/delete': 'owner-only', // owner message feedback
-  'messageFeedback/list': 'owner-only', // owner message feedback
-  'messageFeedback/put': 'owner-only', // owner message feedback
   'goals/clear': 'owner-only', // owner clears the goal
   'goals/complete': 'owner-only', // owner completes the goal
   'goals/create': 'owner-only', // owner creates a goal

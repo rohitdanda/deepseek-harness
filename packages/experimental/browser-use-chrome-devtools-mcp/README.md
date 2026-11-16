@@ -103,7 +103,7 @@ The integration retains the pinned server's browser and tool restrictions.
 - The shared resource-server inventory can show inherited server names; it does not grant access to another Session's browser.
 - Cancellation does not undo navigation, clicks, or other actions already delivered to the browser.
 - Tool schemas follow the pinned experimental dependency and carry no DSH stability promise.
-- Usage statistics are disabled. Other features, including performance tools, retain their upstream behavior.
+- Usage statistics, CrUX field-data lookups from performance traces, and npm update checks are disabled. Other features retain their upstream behavior.
 
 <a id="dev-note"></a>
 ### Dev Note

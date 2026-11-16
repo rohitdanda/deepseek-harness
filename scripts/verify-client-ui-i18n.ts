@@ -328,7 +328,7 @@ function sourceFiles(): string[] {
     ...[...clientComponentRoots].flatMap(clientRoot =>
       globSync(`${clientRoot}/**/*.{ts,tsx}`, { cwd: root })),
     ...globSync('apps/web/src/**/*.{ts,tsx}', { cwd: root }),
-    ...globSync('apps/desktop/src/{main,update-coordinator}.{ts,tsx}', { cwd: root }),
+    ...globSync('apps/desktop/src/main.{ts,tsx}', { cwd: root }),
     ...globSync('apps/desktop/renderer/*.js', { cwd: root }),
   ])]
     .map(file => file.replaceAll('\\', '/'))

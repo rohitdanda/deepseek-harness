@@ -8,14 +8,12 @@ export type WebSearchSettingsLocaleKey =
   | 'providerDeepSeek' | 'providerLocal' | 'providerDeepSeekFetch' | 'providerMissing' | 'providerAuto'
   | 'providerLegacy' | 'legacyKeyHint' | 'maxUses' | 'maxUsesHint' | 'invalidMaxUses'
   | 'providersFailed' | 'retry'
-  | 'pluginProviderHint' | 'searchGuide' | 'searchGuideUrl'
+  | 'pluginProviderHint'
   | 'credential' | 'apiKeySet' | 'apiKeyUnsetApi'
   | 'baseUrl' | 'baseUrlHint'
   | 'count' | 'countHint'
   | 'overridden' | 'reset' | 'readOnly' | 'unavailable'
   | 'save' | 'saving' | 'saveFailed' | 'invalidNumber' | 'invalidCount'
-  | 'billing' | 'billingAuto' | 'billingAutoHint' | 'billingAccount' | 'billingAccountHint' | 'billingApiKey' | 'billingApiKeyHint'
-  | 'billingAdvancedOverride'
 
 /** English copy. */
 export const en: Record<WebSearchSettingsLocaleKey, string> = {
@@ -25,7 +23,7 @@ export const en: Record<WebSearchSettingsLocaleKey, string> = {
   fetchSection: 'Web fetch provider',
   providerDeepSeek: 'DeepSeek Search API',
   providerLegacy: 'DeepSeek (legacy)',
-  legacyKeyHint: 'Uses the signed-in account on account-model requests; otherwise uses this API key ({ref}), shared with Models by default.',
+  legacyKeyHint: 'Uses this API key ({ref}), shared with Models by default.',
   maxUses: 'Maximum searches per request',
   maxUsesHint: 'Maximum server-side searches per Messages request: a positive integer, default 5.',
   invalidMaxUses: 'Enter a positive integer, or leave blank to use the default.',
@@ -40,8 +38,6 @@ export const en: Record<WebSearchSettingsLocaleKey, string> = {
   baseUrl: 'Base URL',
   baseUrlHint: 'Include the API prefix. Leave blank to use the official address. The provider appends {path}.',
   apiKeyUnsetApi: 'No key is configured.',
-  searchGuide: 'Search & Fetch guide',
-  searchGuideUrl: 'https://api-docs.deepseek.com/guides/search',
   apiKeySet: 'A key is configured.',
   count: 'Results per search',
   countHint: 'Results returned per search: 1 to 50, default 10.',
@@ -54,14 +50,6 @@ export const en: Record<WebSearchSettingsLocaleKey, string> = {
   saveFailed: 'The deployment did not accept these values; they were left for you to correct.',
   invalidNumber: 'Enter a number, or leave blank to use the default.',
   invalidCount: 'Enter an integer from 1 to 50, or leave blank to use the default.',
-  billing: 'Billing',
-  billingAuto: 'Automatic',
-  billingAutoHint: "Follows the conversation's DeepSeek account or API key; with other models, uses the API key first, then the signed-in account.",
-  billingAccount: 'Signed-in DeepSeek account',
-  billingAccountHint: 'Requires signing in to DeepSeek.',
-  billingApiKey: 'DeepSeek API key',
-  billingApiKeyHint: 'Uses the API key from the Models page; set one first.',
-  billingAdvancedOverride: 'Overridden by {fields}',
 }
 
 /** Simplified Chinese copy. */
@@ -72,7 +60,7 @@ export const zh: Record<WebSearchSettingsLocaleKey, string> = {
   fetchSection: '网页获取提供方',
   providerDeepSeek: 'DeepSeek Search API',
   providerLegacy: 'DeepSeek（旧版）',
-  legacyKeyHint: '账号模型发起的请求使用已登录账号；其他请求使用此 API Key（{ref}），默认与「模型」页共用',
+  legacyKeyHint: '使用此 API Key（{ref}），默认与「模型」页共用',
   maxUses: '单次请求最多搜索次数',
   maxUsesHint: '每次 Messages 请求允许的服务端搜索次数上限，须为正整数，默认 5',
   invalidMaxUses: '请填正整数；留空表示使用默认值',
@@ -87,8 +75,6 @@ export const zh: Record<WebSearchSettingsLocaleKey, string> = {
   baseUrl: 'Base URL',
   baseUrlHint: '填写含 API 前缀的地址；留空时使用官方地址；程序追加 {path}',
   apiKeyUnsetApi: '未配置密钥。',
-  searchGuide: '网页搜索与获取指南',
-  searchGuideUrl: 'https://api-docs.deepseek.com/zh-cn/guides/search',
   apiKeySet: '已配置密钥。',
   count: '每次搜索结果数',
   countHint: '每次搜索返回的结果条数，1–50，默认 10。',
@@ -101,14 +87,6 @@ export const zh: Record<WebSearchSettingsLocaleKey, string> = {
   saveFailed: '本部署没有接受这些值，已保留供你修改。',
   invalidNumber: '请填数字；留空表示使用默认值。',
   invalidCount: '请填 1–50 的整数；留空表示使用默认值。',
-  billing: '计费方式',
-  billingAuto: '自动',
-  billingAutoHint: '跟随当前会话的 DeepSeek 账号或 API Key；会话用其他模型时，优先用 API Key，没有则用已登录账号。',
-  billingAccount: '已登录的 DeepSeek 账号',
-  billingAccountHint: '需要先登录 DeepSeek 账号。',
-  billingApiKey: 'DeepSeek API Key',
-  billingApiKeyHint: '使用「模型」页配置的 API Key，需要先配置。',
-  billingAdvancedOverride: '已被 {fields} 覆盖',
 }
 
 /**
@@ -128,7 +106,7 @@ export const ja = {
   'fetchSection': 'Web 取得プロバイダー',
   'providerDeepSeek': 'DeepSeek Search API',
   'providerLegacy': 'DeepSeek（旧版）',
-  'legacyKeyHint': 'アカウントモデルのリクエストではログイン中のアカウントを使い、それ以外ではこの API キー（{ref}、既定ではモデル設定と共有）を使います。',
+  'legacyKeyHint': 'この API キー（{ref}、既定ではモデル設定と共有）を使います。',
   'maxUses': 'リクエストごとの最大検索回数',
   'maxUsesHint': 'Messages リクエストごとのサーバー側検索回数の上限です。正の整数で、既定値は 5 です。',
   'invalidMaxUses': '正の整数を入力するか、既定値を使う場合は空欄にしてください。',
@@ -143,8 +121,6 @@ export const ja = {
   'baseUrl': 'ベース URL',
   'baseUrlHint': 'API プレフィックスを含めてください。空欄の場合は公式アドレスを使用します。プロバイダーは {path} を追加します。',
   'apiKeyUnsetApi': 'キーが設定されていません。',
-  'searchGuide': '検索と取得のガイド',
-  'searchGuideUrl': 'https://api-docs.deepseek.com/guides/search',
   'apiKeySet': 'キーが設定されています。',
   'count': '検索あたりの結果数',
   'countHint': '検索ごとに返す結果数です。1〜50、既定値は 10 です。',
@@ -157,14 +133,6 @@ export const ja = {
   'saveFailed': 'デプロイがこれらの値を受け入れませんでした。修正用に残されています。',
   'invalidNumber': '数値を入力するか、デフォルトを使用するには空欄にしてください。',
   'invalidCount': '1〜50 の整数を入力するか、デフォルトを使用するには空欄にしてください。',
-  'billing': '課金方法',
-  'billingAuto': '自動',
-  'billingAutoHint': '会話の DeepSeek アカウントまたは API キーに従います。他のモデルでは API キーを優先し、ない場合はログイン中のアカウントを使います。',
-  'billingAccount': 'ログイン中の DeepSeek アカウント',
-  'billingAccountHint': 'DeepSeek へのログインが必要です。',
-  'billingApiKey': 'DeepSeek API キー',
-  'billingApiKeyHint': 'モデルページの API キーを使います。先に設定してください。',
-  'billingAdvancedOverride': '{fields} により上書き済み',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -175,7 +143,7 @@ export const es = {
   fetchSection: 'Proveedor de obtención web',
   providerDeepSeek: 'DeepSeek Search API',
   providerLegacy: 'DeepSeek (heredado)',
-  legacyKeyHint: 'Las solicitudes del modelo de cuenta usan la cuenta conectada; las demás usan esta clave API ({ref}), compartida con Modelos de forma predeterminada.',
+  legacyKeyHint: 'Usa esta clave API ({ref}), compartida con Modelos de forma predeterminada.',
   maxUses: 'Búsquedas máximas por solicitud',
   maxUsesHint: 'Máximo de búsquedas del servidor por solicitud Messages: entero positivo, predeterminado 5.',
   invalidMaxUses: 'Introduzca un entero positivo o deje vacío para usar el valor predeterminado.',
@@ -190,8 +158,6 @@ export const es = {
   baseUrl: 'URL base',
   baseUrlHint: 'Incluya el prefijo de la API. Déjelo en blanco para usar la dirección oficial. El proveedor agrega {path}.',
   apiKeyUnsetApi: 'No hay ninguna clave configurada.',
-  searchGuide: 'Guía de búsqueda y recuperación',
-  searchGuideUrl: 'https://api-docs.deepseek.com/guides/search',
   apiKeySet: 'Se configura una clave.',
   count: 'Resultados por búsqueda',
   countHint: 'Resultados devueltos por búsqueda: de 1 a 50, predeterminado 10.',
@@ -204,14 +170,6 @@ export const es = {
   saveFailed: 'El despliegue no aceptó estos valores; quedaron para que usted los corrigiera.',
   invalidNumber: 'Ingrese un número o déjelo en blanco para usar el valor predeterminado.',
   invalidCount: 'Ingrese un número entero del 1 al 50 o déjelo en blanco para usar el valor predeterminado.',
-  billing: 'Facturación',
-  billingAuto: 'Automática',
-  billingAutoHint: 'Sigue la cuenta o la clave de API de DeepSeek de la conversación; con otros modelos, usa primero la clave de API y luego la cuenta conectada.',
-  billingAccount: 'Cuenta de DeepSeek conectada',
-  billingAccountHint: 'Requiere iniciar sesión en DeepSeek.',
-  billingApiKey: 'Clave de API de DeepSeek',
-  billingApiKeyHint: 'Usa la clave de API de la página Modelos; configúrela primero.',
-  billingAdvancedOverride: 'Anulado por {fields}',
 } satisfies Record<keyof typeof en, string>
 
 /** French dictionary, checked against the English keys. */
@@ -222,7 +180,7 @@ export const fr = {
   fetchSection: 'Fournisseur de récupération web',
   providerDeepSeek: 'DeepSeek Search API',
   providerLegacy: 'DeepSeek (ancienne version)',
-  legacyKeyHint: 'Les requêtes du modèle de compte utilisent le compte connecté ; les autres utilisent cette clé API ({ref}), partagée avec Modèles par défaut.',
+  legacyKeyHint: 'Utilise cette clé API ({ref}), partagée avec Modèles par défaut.',
   maxUses: 'Recherches maximales par requête',
   maxUsesHint: 'Maximum de recherches côté serveur par requête Messages : entier positif, 5 par défaut.',
   invalidMaxUses: 'Saisissez un entier positif ou laissez vide pour utiliser la valeur par défaut.',
@@ -237,8 +195,6 @@ export const fr = {
   baseUrl: 'URL de base',
   baseUrlHint: "Incluez le préfixe de l'API. Laissez vide pour utiliser l'adresse officielle. Le fournisseur ajoute {path}.",
   apiKeyUnsetApi: "Aucune clé n'est configurée.",
-  searchGuide: 'Guide de recherche et de récupération',
-  searchGuideUrl: 'https://api-docs.deepseek.com/guides/search',
   apiKeySet: 'Une clé est configurée.',
   count: 'Résultats par recherche',
   countHint: 'Résultats renvoyés par recherche : de 1 à 50, 10 par défaut.',
@@ -251,14 +207,6 @@ export const fr = {
   saveFailed: "Le déploiement n'a pas accepté ces valeurs ; ils vous ont été laissés à corriger.",
   invalidNumber: 'Entrez un numéro ou laissez ce champ vide pour utiliser la valeur par défaut.',
   invalidCount: 'Entrez un nombre entier compris entre 1 et 50 ou laissez vide pour utiliser la valeur par défaut.',
-  billing: 'Facturation',
-  billingAuto: 'Automatique',
-  billingAutoHint: "Suit le compte ou la clé API DeepSeek de la conversation ; avec d'autres modèles, utilise d'abord la clé API, puis le compte connecté.",
-  billingAccount: 'Compte DeepSeek connecté',
-  billingAccountHint: 'Nécessite une connexion à DeepSeek.',
-  billingApiKey: 'Clé API DeepSeek',
-  billingApiKeyHint: "Utilise la clé API de la page Modèles ; définissez-en une d'abord.",
-  billingAdvancedOverride: 'Remplacé par {fields}',
 } satisfies Record<keyof typeof en, string>
 
 /** German dictionary, checked against the English keys. */
@@ -269,7 +217,7 @@ export const de = {
   fetchSection: 'Anbieter für Webabruf',
   providerDeepSeek: 'DeepSeek Search API',
   providerLegacy: 'DeepSeek (Legacy)',
-  legacyKeyHint: 'Kontomodellanfragen verwenden das angemeldete Konto; andere verwenden diesen API-Schlüssel ({ref}), standardmäßig mit Modelle geteilt.',
+  legacyKeyHint: 'Verwendet diesen API-Schlüssel ({ref}), standardmäßig mit Modelle geteilt.',
   maxUses: 'Maximale Suchen pro Anfrage',
   maxUsesHint: 'Maximale serverseitige Suchen pro Messages-Anfrage: positive Ganzzahl, Standard 5.',
   invalidMaxUses: 'Geben Sie eine positive Ganzzahl ein oder lassen Sie das Feld für den Standard leer.',
@@ -284,8 +232,6 @@ export const de = {
   baseUrl: 'Basis-URL',
   baseUrlHint: 'Fügen Sie das API-Präfix ein. Leer lassen, um die offizielle Adresse zu verwenden. Der Anbieter hängt {path} an.',
   apiKeyUnsetApi: 'Es ist kein Schlüssel konfiguriert.',
-  searchGuide: 'Leitfaden zum Suchen und Abrufen',
-  searchGuideUrl: 'https://api-docs.deepseek.com/guides/search',
   apiKeySet: 'Ein Schlüssel ist konfiguriert.',
   count: 'Ergebnisse pro Suche',
   countHint: 'Ergebnisse pro Suche: 1 bis 50, Standard 10.',
@@ -298,14 +244,6 @@ export const de = {
   saveFailed: 'Die Bereitstellung hat diese Werte nicht akzeptiert. Sie mussten sie korrigieren.',
   invalidNumber: 'Geben Sie eine Zahl ein oder lassen Sie das Feld leer, um den Standardwert zu verwenden.',
   invalidCount: 'Geben Sie eine Ganzzahl zwischen 1 und 50 ein oder lassen Sie das Feld leer, um den Standardwert zu verwenden.',
-  billing: 'Abrechnung',
-  billingAuto: 'Automatisch',
-  billingAutoHint: 'Folgt dem DeepSeek-Konto oder API-Schlüssel der Unterhaltung; bei anderen Modellen zuerst der API-Schlüssel, dann das angemeldete Konto.',
-  billingAccount: 'Angemeldetes DeepSeek-Konto',
-  billingAccountHint: 'Erfordert eine Anmeldung bei DeepSeek.',
-  billingApiKey: 'DeepSeek-API-Schlüssel',
-  billingApiKeyHint: 'Verwendet den API-Schlüssel der Seite Modelle; legen Sie zuerst einen fest.',
-  billingAdvancedOverride: 'Überschrieben durch {fields}',
 } satisfies Record<keyof typeof en, string>
 
 /** Russian dictionary, checked against the English keys. */
@@ -316,7 +254,7 @@ export const ru = {
   fetchSection: 'Поставщик загрузки веб-страниц',
   providerDeepSeek: 'DeepSeek Search API',
   providerLegacy: 'DeepSeek (прежняя версия)',
-  legacyKeyHint: 'Запросы модели аккаунта используют активный аккаунт; остальные — этот ключ API ({ref}), по умолчанию общий с настройками моделей.',
+  legacyKeyHint: 'Используется этот ключ API ({ref}), по умолчанию общий с настройками моделей.',
   maxUses: 'Максимум поисков на запрос',
   maxUsesHint: 'Максимум серверных поисков на запрос Messages: положительное целое, по умолчанию 5.',
   invalidMaxUses: 'Введите положительное целое или оставьте пустым для значения по умолчанию.',
@@ -331,8 +269,6 @@ export const ru = {
   baseUrl: 'Базовый URL',
   baseUrlHint: 'Включите префикс API. Оставьте пустым, чтобы использовать официальный адрес. Поставщик добавляет {path}.',
   apiKeyUnsetApi: 'Ключ не настроен.',
-  searchGuide: 'Руководство по поиску и получению',
-  searchGuideUrl: 'https://api-docs.deepseek.com/guides/search',
   apiKeySet: 'Ключ настроен.',
   count: 'Результаты по поиску',
   countHint: 'Число результатов на поиск: от 1 до 50, по умолчанию 10.',
@@ -345,14 +281,6 @@ export const ru = {
   saveFailed: 'Развертывание не приняло эти значения; их оставили вам на исправление.',
   invalidNumber: 'Введите число или оставьте поле пустым, чтобы использовать значение по умолчанию.',
   invalidCount: 'Введите целое число от 1 до 50 или оставьте поле пустым, чтобы использовать значение по умолчанию.',
-  billing: 'Оплата',
-  billingAuto: 'Автоматически',
-  billingAutoHint: 'Следует аккаунту или ключу API DeepSeek из разговора; с другими моделями сначала ключ API, затем активный аккаунт.',
-  billingAccount: 'Активный аккаунт DeepSeek',
-  billingAccountHint: 'Требуется вход в DeepSeek.',
-  billingApiKey: 'Ключ API DeepSeek',
-  billingApiKeyHint: 'Использует ключ API со страницы моделей; сначала задайте его.',
-  billingAdvancedOverride: 'Переопределено: {fields}',
 } satisfies Record<keyof typeof en, string>
 
 /** Portuguese dictionary, checked against the English keys. */
@@ -363,7 +291,7 @@ export const pt = {
   fetchSection: 'Provedor de obtenção na web',
   providerDeepSeek: 'DeepSeek Search API',
   providerLegacy: 'DeepSeek (legado)',
-  legacyKeyHint: 'Pedidos do modelo de conta usam a conta conectada; os demais usam esta chave API ({ref}), compartilhada com Modelos por padrão.',
+  legacyKeyHint: 'Usa esta chave API ({ref}), compartilhada com Modelos por padrão.',
   maxUses: 'Máximo de pesquisas por pedido',
   maxUsesHint: 'Máximo de pesquisas no servidor por pedido Messages: inteiro positivo, padrão 5.',
   invalidMaxUses: 'Insira um inteiro positivo ou deixe vazio para usar o padrão.',
@@ -378,8 +306,6 @@ export const pt = {
   baseUrl: 'URL base',
   baseUrlHint: 'Inclua o prefixo da API. Deixe em branco para usar o endereço oficial. O provedor anexa {path}.',
   apiKeyUnsetApi: 'Nenhuma chave está configurada.',
-  searchGuide: 'Guia de pesquisa e busca',
-  searchGuideUrl: 'https://api-docs.deepseek.com/guides/search',
   apiKeySet: 'Uma chave está configurada.',
   count: 'Resultados por pesquisa',
   countHint: 'Resultados retornados por pesquisa: de 1 a 50, padrão 10.',
@@ -392,12 +318,4 @@ export const pt = {
   saveFailed: 'A implantação não aceitou esses valores; eles foram deixados para você corrigir.',
   invalidNumber: 'Insira um número ou deixe em branco para usar o padrão.',
   invalidCount: 'Insira um número inteiro de 1 a 50 ou deixe em branco para usar o padrão.',
-  billing: 'Cobrança',
-  billingAuto: 'Automática',
-  billingAutoHint: 'Segue a conta ou a chave de API da DeepSeek da conversa; com outros modelos, usa primeiro a chave de API e depois a conta conectada.',
-  billingAccount: 'Conta DeepSeek conectada',
-  billingAccountHint: 'Requer login na DeepSeek.',
-  billingApiKey: 'Chave de API da DeepSeek',
-  billingApiKeyHint: 'Usa a chave de API da página Modelos; defina uma primeiro.',
-  billingAdvancedOverride: 'Substituído por {fields}',
 } satisfies Record<keyof typeof en, string>

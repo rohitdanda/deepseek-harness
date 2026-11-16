@@ -19,14 +19,15 @@ export const Config: typeof BrowserMcpConfig = BrowserMcpConfig
 
 /**
  * Expose Chrome DevTools' upstream catalog through one MCP process per live Session.
- * Attached browsers remain externally owned; the server disables usage statistics.
+ * Attached browsers remain externally owned; the server runs with usage statistics, CrUX field-data lookups,
+ * and npm update checks disabled, so it sends no data to Google or the npm registry.
  * @param ctx - provider context supplying browser use, Agents, and tools.
  * @param config - validated browser choice and optional tool timeout.
  */
 export function apply(ctx: Context, config: Config): void {
   validateBrowserMcpConfig(config)
   const cli = fileURLToPath(import.meta.resolve('chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js'))
-  const args = [cli, '--no-usage-statistics']
+  const args = [cli, '--no-usage-statistics', '--no-performance-crux']
   if (config.mode === 'attach') {
     args.push(/^wss?:/u.test(config.endpoint) ? '--ws-endpoint' : '--browser-url', config.endpoint)
   } else {
@@ -38,6 +39,7 @@ export function apply(ctx: Context, config: Config): void {
     exclusive: config.mode === 'attach',
     command: process.execPath,
     args,
+    env: { CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS: '1', CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS: '1' },
     ...config.toolCallTimeoutMs === undefined ? {} : { toolCallTimeoutMs: config.toolCallTimeoutMs },
   })
 }

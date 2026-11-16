@@ -1,4 +1,3 @@
-import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { setImmediate } from 'node:timers/promises'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -22,16 +21,15 @@ vi.mock('../scripts/windows-signature-cache-directory.mjs', () => ({
   resolveWindowsSignatureCacheDirectory: vi.fn(() => 'C:\\fixture-cache'),
 }))
 
-// Keep the real orchestration and manifest reads; this suite owns no release directories or subprocesses.
+// Keep the real orchestration and manifest reads; this suite owns no build directories or subprocesses.
 vi.mock('node:fs', async importOriginal => ({
   ...await importOriginal<typeof import('node:fs')>(),
-  rmSync: vi.fn(), mkdirSync: vi.fn(), writeFileSync: vi.fn(), renameSync: vi.fn(),
+  rmSync: vi.fn(), mkdirSync: vi.fn(),
 }))
 
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks() })
 
-const environment = { DSH_DESKTOP_APP_ID: 'com.example.test', DSH_DESKTOP_AUTO_UPDATE_ENV: 'test',
-  DOWNLOAD_TEST_ORIGIN: 'https://updates.example.com', DOWNLOAD_TEST_RELEASE_ID: '0123456789abcdef0123456789abcdef',
+const environment = { DSH_DESKTOP_APP_ID: 'com.example.test',
   DSH_DESKTOP_WINDOWS_TOKEN_PIN: 'fixture-pin', DSH_DESKTOP_WINDOWS_SIGNATURE_CACHE_CONCURRENCY: '2' }
 
 function supervisor(failure?: string) {
@@ -71,11 +69,9 @@ it.each(['pack', 'runtime'] as const)('overlaps Windows preparation and waits fo
     ;(first === 'pack' ? pack : runtime).resolve(undefined)
     await vi.waitFor(() => { expect(finished.has(first)).toBe(true) })
     expect(stages).not.toContain('run sign:primary-runtime')
-    expect(writeFileSync).not.toHaveBeenCalled()
     ;(first === 'pack' ? runtime : pack).resolve(undefined)
     expect(await outcome).toBeUndefined()
     expect(stages).toContain('run sign:primary-runtime')
-    expect(writeFileSync).toHaveBeenCalledOnce()
   } finally {
     pack.resolve(undefined)
     runtime.resolve(undefined)
@@ -106,7 +102,6 @@ it.each(['pack', 'runtime'] as const)('drains the other Windows preparation afte
     ;(failed === 'pack' ? pack : runtime).reject(failure)
     await setImmediate()
     expect(settled).toBe(false)
-    expect(writeFileSync).not.toHaveBeenCalled()
     ;(failed === 'pack' ? runtime : pack).resolve(undefined)
     expect(await outcome).toBe(failure)
     expect(stages.filter(stage => stage.startsWith('run release:pack'))).toHaveLength(1)
@@ -114,7 +109,6 @@ it.each(['pack', 'runtime'] as const)('drains the other Windows preparation afte
     expect(stages.some(stage => stage.startsWith('--dir native/system'))).toBe(false)
     expect(stages.some(stage => stage.startsWith('run sign:primary-runtime'))).toBe(false)
     expect(stages.some(stage => stage.startsWith('run prepare:packages') || stage.startsWith('run prepare:dsh'))).toBe(false)
-    expect(writeFileSync).not.toHaveBeenCalled()
   } finally {
     pack.resolve(undefined)
     runtime.resolve(undefined)
@@ -148,7 +142,7 @@ it.each([undefined, '2'])('uses bounded Windows packing while retaining signing 
   expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts')
 })
 
-it('requires one signing preflight before building, then records only the complete release', async () => {
+it('requires one signing preflight before building', async () => {
   const { run, stages } = supervisor()
   await packageTarget(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64'), environment, run)
   expect(stages.slice(0, 2)).toEqual(['preflight:windows-signing', 'run build:official'])
@@ -168,9 +162,6 @@ it('requires one signing preflight before building, then records only the comple
       expect(call[3].env).toHaveProperty('DSH_DESKTOP_WINDOWS_SIGNATURE_CACHE_CONCURRENCY', '2')
     }
   }
-  expect(writeFileSync).toHaveBeenCalledOnce()
-  const record = JSON.parse(vi.mocked(writeFileSync).mock.calls[0]![1] as string) as { publicUrl: string }
-  expect(record.publicUrl).toBe('https://updates.example.com/dsh-desk/0123456789abcdef0123456789abcdef/feeds/win-x64/')
 })
 
 it('initializes shared storage only after acquiring the preflight stage lock', async () => {
@@ -186,15 +177,14 @@ it('initializes shared storage only after acquiring the preflight stage lock', a
 it.each(['preflight:windows-signing', 'run build:official', 'run sign:primary-runtime', 'run prepare:dsh --defer-runtime-smoke', 'run sign:primary-runtime --dsh',
   'exec tsx scripts/smoke-packaged-runtime.ts',
   'exec electron-builder --config electron-builder.config.mjs --win --x64 --publish never'])
-('never continues or records a release after %s fails', async (failure) => {
+('never continues after %s fails', async (failure) => {
   const { run, stages } = supervisor(failure)
   await expect(packageTarget(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64'), environment, run)).rejects.toThrow('stage refused')
   expect(stages.at(-1)).toBe(failure)
   expect(stages.filter(stage => stage === failure)).toHaveLength(1)
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
-it.each(['--unsigned', '--prepare-only'])('keeps %s hardware-free and creates no release record', async (mode) => {
+it.each(['--unsigned', '--prepare-only'])('keeps %s hardware-free', async (mode) => {
   const { run, stages } = supervisor()
   await packageTarget(parseDesktopPackageInvocation(['win-x64', mode], 'win32', 'x64'), environment, run)
   expect(stages[0]).toBe(mode === '--unsigned' ? 'run build --profile local' : 'run build:official')
@@ -203,7 +193,6 @@ it.each(['--unsigned', '--prepare-only'])('keeps %s hardware-free and creates no
   expect(stages).not.toContain('run sign:primary-runtime --dsh')
   expect(withWindowsSigningStage).not.toHaveBeenCalled()
   for (const call of run.run.mock.calls) expect(call[3].env).not.toHaveProperty('DSH_DESKTOP_WINDOWS_TOKEN_PIN')
-  expect(writeFileSync).not.toHaveBeenCalled()
   expect(stages.includes('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')).toBe(mode === '--unsigned')
 })
 
@@ -245,23 +234,20 @@ it.each([
   expect(stages.slice(failedAt + 1)).toEqual(
     target === 'win-x64' && failure.startsWith('exec tsx') ? ['run prepare:runtime'] : [])
   expect(stages.some(stage => stage.startsWith('--dir apps/desktop-host pack'))).toBe(false)
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
-it('checks the assembled macOS runtime before notarizing and recording the release', async () => {
+it('checks the assembled macOS runtime before notarizing', async () => {
   const { run, stages } = supervisor()
   vi.mocked(packageMacOSArtifacts).mockImplementationOnce(async () => {
     expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts')
-    expect(writeFileSync).not.toHaveBeenCalled()
   })
   await packageTarget(parseDesktopPackageInvocation(['mac-arm64'], 'darwin', 'arm64'), environment, run)
   expect(packageMacOSArtifacts).toHaveBeenCalledOnce()
-  expect(writeFileSync).toHaveBeenCalledOnce()
 })
 
 it.each([
   ['mac-arm64', false], ['mac-arm64', true], ['mac-x64', false], ['mac-x64', true],
-] as const)('builds unsigned %s with directory=%s without Apple credentials, notarization, or a release record', async (target, directory) => {
+] as const)('builds unsigned %s with directory=%s without Apple credentials or notarization', async (target, directory) => {
   const { run, stages } = supervisor()
   await packageTarget(parseDesktopPackageInvocation([target, '--unsigned', ...(directory ? ['--dir'] : [])], 'darwin', 'arm64'), {
     ...environment, CSC_LINK: 'unused.p12', CSC_KEY_PASSWORD: 'unused-secret', APPLE_API_KEY: 'unused.p8',
@@ -277,7 +263,6 @@ it.each([
   }
   expect(withMacOSNotarizationProxy).not.toHaveBeenCalled()
   expect(packageMacOSArtifacts).not.toHaveBeenCalled()
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
 it('fails unsigned macOS packaging when the assembled runtime cannot run', async () => {
@@ -285,24 +270,21 @@ it('fails unsigned macOS packaging when the assembled runtime cannot run', async
   await expect(packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--unsigned'], 'darwin', 'arm64'), environment, run))
     .rejects.toThrow('stage refused')
   expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
-it.each([false, true])('refuses macOS notarization and release records after an assembled-runtime failure (directory=%s)', async (directory) => {
+it.each([false, true])('refuses macOS notarization after an assembled-runtime failure (directory=%s)', async (directory) => {
   const { run } = supervisor('exec tsx scripts/smoke-packaged-runtime.ts')
   await expect(packageTarget(parseDesktopPackageInvocation(['mac-arm64', ...(directory ? ['--dir'] : [])], 'darwin', 'arm64'), environment, run))
     .rejects.toThrow('stage refused')
   expect(withMacOSNotarizationProxy).not.toHaveBeenCalled()
   expect(packageMacOSArtifacts).not.toHaveBeenCalled()
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
-it('checks macOS directory packages without writing a release record', async () => {
+it('checks macOS directory packages', async () => {
   const { run, stages } = supervisor()
   await packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--dir'], 'darwin', 'arm64'), { ...environment, APPLE_KEYCHAIN_PROFILE: 'fixture' }, run)
   expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts')
   expect(packageMacOSArtifacts).not.toHaveBeenCalled()
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
 it.each([undefined, '2'])('passes macOS pack concurrency %s only to workspace packing and download routing only to download stages', async (concurrency) => {
@@ -336,12 +318,11 @@ it.each([false, true])('scopes the Apple proxy around notarization (directory=%s
   }
 })
 
-it('does not write a release completion record when Apple proxy cleanup fails', async () => {
+it('reports a failed Apple proxy cleanup', async () => {
   const { run } = supervisor()
   vi.mocked(withMacOSNotarizationProxy).mockRejectedValueOnce(new Error('proxy restoration failed'))
   await expect(packageTarget(parseDesktopPackageInvocation(['mac-arm64'], 'darwin', 'arm64'), environment, run))
     .rejects.toThrow('proxy restoration failed')
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
 it.each([false, true])('keeps signing and runtime verification when notarization is skipped (directory=%s)', async (directory) => {
@@ -357,7 +338,6 @@ it.each([false, true])('keeps signing and runtime verification when notarization
   })
   expect(withMacOSNotarizationProxy).not.toHaveBeenCalled()
   expect(packageMacOSArtifacts).not.toHaveBeenCalled()
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
 it.each(['mac-arm64', 'mac-x64'] as const)('applies ZIP compression without changing DMG settings when skipping notarization for %s', async (target) => {
@@ -385,7 +365,6 @@ it.each(['mac-arm64', 'mac-x64'] as const)('applies ZIP compression without chan
   }
   expect(packageMacOSArtifacts).not.toHaveBeenCalled()
   expect(withMacOSNotarizationProxy).not.toHaveBeenCalled()
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
 it('fails debugging packages when runtime verification fails', async () => {
@@ -394,7 +373,6 @@ it('fails debugging packages when runtime verification fails', async () => {
   await expect(packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--skip-notarization'], 'darwin', 'arm64'), environment, run))
     .rejects.toThrow('stage refused')
   expect(stages.at(-1)).toBe(failure)
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
 it('stops unnotarized ZIP packaging when the DMG stage fails', async () => {
@@ -404,7 +382,6 @@ it('stops unnotarized ZIP packaging when the DMG stage fails', async () => {
     .rejects.toThrow('stage refused')
   expect(stages.some(stage => stage.includes('--mac zip'))).toBe(false)
   expect(stages.some(stage => stage.includes('smoke-packaged-runtime'))).toBe(false)
-  expect(writeFileSync).not.toHaveBeenCalled()
 })
 
 it.each([undefined, '7'])('applies file-owned compression only to the final notarized ZIP (%s)', async (level) => {
@@ -420,5 +397,4 @@ it.each([undefined, '7'])('applies file-owned compression only to the final nota
   const dmg = run.run.mock.calls.find(call => call[0].includes('--mac dmg'))
   expect(zip?.[3].env.ELECTRON_BUILDER_COMPRESSION_LEVEL).toBe(level ?? '3')
   expect(dmg?.[3].env.ELECTRON_BUILDER_COMPRESSION_LEVEL).toBe('9')
-  expect(writeFileSync).toHaveBeenCalledOnce()
 })

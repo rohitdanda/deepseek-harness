@@ -10,7 +10,7 @@ The install dialog handed the spec to `pnpm add` with no registry of its own, so
 
 ## Decision
 
-**The manager asks a plan of registries, not one.** `PluginManager.Config` gains `registry`, the registry asked first (absent: `null`, the one pnpm's own configuration names), and `fallbackRegistries`, the registries asked after it, defaulting to npmmirror. `registryPlan` resolves one operation's plan: the requested registry, else the configured first, then the rest of the configured set. A requested registry outside that set is asked alone: a private registry never falls through to a public one, where a name that exists on both would install someone else's package. Registries are compared in pnpm's form, lower-case host with a trailing slash.
+**The manager asks a plan of registries, not one.** `PluginManager.Config` gains `registry`, the registry asked first (absent: `null`, the one pnpm's own configuration names), and `fallbackRegistries`, the registries asked after it, defaulting to none. `registryPlan` resolves one operation's plan: the requested registry, else the configured first, then the rest of the configured set. A requested registry outside that set is asked alone: a private registry never falls through to a public one, where a name that exists on both would install someone else's package. Registries are compared in pnpm's form, lower-case host with a trailing slash.
 
 **pnpm's own registry is public only once read as such.** `null` names whatever the machine's `.npmrc` chain says, which may be a company registry. Before each plan the manager reads it through `pnpm config get registry` in the profile directory, and `null` joins the configured set only while that is npm's own registry or one of the configured fallbacks; otherwise it is asked alone, whether requested as `null` or by its URL, and a public registry asked instead never falls back into it. A registry pnpm already names is asked once rather than twice. Reading fails closed: an unreadable answer leaves `null` alone. `registries()` returns the reading as `resolved`, so the dialog labels the option by the host pnpm names when that is not npm's own.
 
@@ -30,7 +30,7 @@ The install dialog handed the spec to `pnpm add` with no registry of its own, so
 
 **Fall back to the public registries after a private one.** Rejected: dependency confusion. A name that a private registry serves and a public one also holds would install the public package when the private registry is down. This holds for a private registry the machine's `.npmrc` names as much as for one typed into the dialog, which is why pnpm's own registry is read before it may join the plan.
 
-**Treat pnpm's own registry as public without reading it.** Rejected: the shipped configuration would then send every `.npmrc`-configured company registry's failures on to npmmirror. Reading it costs one `pnpm config get registry` per plan, about 170 ms.
+**Treat pnpm's own registry as public without reading it.** Rejected: a configured fallback set would then receive every `.npmrc`-configured company registry's failures. Reading it costs one `pnpm config get registry` per plan, about 170 ms.
 
 **Let the dialog describe the plan.** Rejected: a copy of the membership rule drifted at once — a typed mirror URL without its trailing slash read as a lone registry in the dialog while the Host normalized it into the set — and a sentence about fallbacks under the options was noise to the person choosing one. The dialog shows the order only as the Host asks it.
 

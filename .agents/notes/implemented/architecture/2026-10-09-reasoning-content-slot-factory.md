@@ -66,7 +66,7 @@ renderFactorySlot('conversation.chat.reasoning.content', {
 
 ### Translation plugin integration
 
-The [anonymous translation design](2026-10-05-anonymous-reasoning-translation.md) retains its external-request, privacy, failure, and cancellation decisions; this design supersedes its body composition mechanism. The translation plugin registers in the standard Body Slot, renders original/translation selection, status, and retry controls in its own toolbar, and wraps the official Content Factory with its own state and optional custom labels rather than calling `MarkdownText` directly.
+This design supersedes the body composition mechanism of the [anonymous translation design](../../archived/architecture/2026-10-05-anonymous-reasoning-translation.md), whose Google and Bing routes are removed. The translation plugin registers in the standard Body Slot, renders original/translation selection, status, and retry controls in its own toolbar, and wraps the official Content Factory with its own state and optional custom labels rather than calling `MarkdownText` directly.
 
 Translation requests, splitting, caching, persistence, and settings remain unchanged. The translation toggle belongs to the plugin body rather than the official Think title. The design adds no Slot outside the body, does not handle user-message masking, and does not change the general Markdown parser.
 

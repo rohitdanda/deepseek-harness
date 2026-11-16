@@ -82,10 +82,6 @@ describe('DeepSeekSearchApiProvider availability', () => {
     expect(searchProvider(options).available()).toBe(true)
   })
 
-  it('is available with only an account token resolver', () => {
-    expect(searchProvider({ ...options, auth: { sources: [{ kind: 'account', baseURL: BASE, resolveToken: async () => 'account-token', rejectToken: async () => {} }] } }).available()).toBe(true)
-  })
-
   it('is available with only a misconfigured source, which the search reports', () => {
     expect(searchProvider({ ...options, auth: { sources: [{ kind: 'misconfigured', message: 'route settings do not resolve' }] } }).available()).toBe(true)
   })

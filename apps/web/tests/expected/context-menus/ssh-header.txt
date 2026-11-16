@@ -1,5 +1,3 @@
 - menu:
   - menuitem "Copy Session as Markdown"
   - menuitem "Download session log"
-  - separator
-  - menuitem "Feedback"

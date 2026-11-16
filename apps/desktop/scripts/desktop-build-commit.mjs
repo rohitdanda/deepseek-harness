@@ -1,7 +1,7 @@
 /**
  * Carry the commit a build came from into its artifacts.
  *
- * A build that reaches a colleague or a test feed is not reachable from a tag,
+ * A build that reaches a colleague is not reachable from a tag,
  * so the only way back to its sources is what the build recorded about itself.
  * The packaging entry reads the checkout once and passes the result to every
  * child process, which run against a build tree rather than a checkout.

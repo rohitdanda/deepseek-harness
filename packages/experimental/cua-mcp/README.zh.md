@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-这个实验性组合包独立组成 `cua-mcp` profile，即 Computer Use 的 MCP stdio 服务器。每个 DSH 安装都自带它；只选本组合包的 profile manifest 就能让 `dsh --profile cua-mcp` 向一个 MCP 客户端提供 `cua_get_api_reference`、`cua_run_code` 与 `cua_reset`。该 profile 只由本组合包构成：不加载任何模型适配器、提示侧工具或遥测行。一个连接拥有一个 Agent，其程序在多次调用之间于内存中保留应用与窗口对象。应用与指针访问的授权可无人值守放行，或作为 elicitation 转发给客户端；模型归接入的 harness 所有。
+这个实验性组合包独立组成 `cua-mcp` profile，即 Computer Use 的 MCP stdio 服务器。每个 DSH 安装都自带它；只选本组合包的 profile manifest 就能让 `dsh --profile cua-mcp` 向一个 MCP 客户端提供 `cua_get_api_reference`、`cua_run_code` 与 `cua_reset`。该 profile 只由本组合包构成：不加载任何模型适配器或提示侧工具行。一个连接拥有一个 Agent，其程序在多次调用之间于内存中保留应用与窗口对象。应用与指针访问的授权可无人值守放行，或作为 elicitation 转发给客户端；模型归接入的 harness 所有。
 
 ## 目录
 

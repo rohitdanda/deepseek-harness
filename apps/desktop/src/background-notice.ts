@@ -7,7 +7,7 @@ import type { DesktopLocale } from './locale.ts'
 
 /** Persistent acknowledgement and the shared shell dialog. */
 export interface DesktopBackgroundNoticeOptions {
-  /** Acknowledgement under Electron userData; updates retain it and uninstall removes it. */
+  /** Acknowledgement under Electron userData; uninstall removes it. */
   readonly markerPath: string
   readonly locale: () => DesktopLocale
   readonly show: (options: MessageBoxOptions) => Promise<MessageBoxReturnValue>

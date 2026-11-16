@@ -1,53 +1,36 @@
-/** Provider-independent inputs to the experimental translation service. */
+/** Inputs to the experimental translation service. */
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 
-/** Anonymous browser endpoint selected for one translation. */
-export type AnonymousTranslationProvider = 'google' | 'bing'
+/** Explicit native DeepSeek credential route selected for translation. */
+export type TranslationProvider = 'deepseek-official'
 
-/** Explicit native DeepSeek credential route selected for paid translation. */
-export type PaidTranslationProvider = 'deepseek-account' | 'deepseek-official'
-
-/** Explicit anonymous endpoint or native paid model route. */
-export type TranslationProvider = AnonymousTranslationProvider | PaidTranslationProvider
-
-/** Text and provider-supported language tags supplied by a consumer. */
+/** Text and language tags supplied by a consumer. */
 export interface TranslationRequest {
   /** Complete text submitted to the selected provider. */
   readonly text: string
-  /** Destination language; common Chinese locale tags are normalized per provider. */
+  /** Destination language tag, inserted verbatim into the translation instruction. */
   readonly targetLanguage: string
   /** Source language; omission uses automatic detection. */
   readonly sourceLanguage?: string
-  /** Endpoint selection; omission uses the service's configured provider. */
+  /** Route selection; omission uses the service's configured provider. */
   readonly provider?: TranslationProvider
-  /** Existing Session for durable results; a cache miss requires it to be active. Omission keeps the call stateless. */
+  /** Existing Session for durable results; a cache miss requires it to be active. Omission is rejected. */
   readonly sessionId?: SessionId
 }
 
-/** Fully resolved text and language choices shared by every provider. */
-interface TranslationSpecFields {
+/** Fully resolved native request with its required durable Session identity. */
+export interface TranslationSpec {
   /** Complete text submitted to the selected provider. */
   readonly text: string
   /** Destination language tag. */
   readonly targetLanguage: string
   /** Source language tag, or `auto` for automatic detection. */
   readonly sourceLanguage: string
-  /** Existing Session for durable translation records. */
-  readonly sessionId?: SessionId
-}
-
-/** Fully resolved anonymous endpoint request. */
-export interface AnonymousTranslationSpec extends TranslationSpecFields { readonly provider: AnonymousTranslationProvider }
-
-/** Fully resolved native request with its required durable Session identity. */
-export interface PaidTranslationSpec extends TranslationSpecFields {
-  readonly provider: PaidTranslationProvider
-  /** Existing durable Session; required before paid request admission. */
+  /** Selected native model route. */
+  readonly provider: TranslationProvider
+  /** Existing durable Session; required before request admission. */
   readonly sessionId: SessionId
 }
-
-/** Fully resolved routing and language choices for one provider request. */
-export type TranslationSpec = AnonymousTranslationSpec | PaidTranslationSpec
 
 /** Provider-independent identity of one reusable translation. */
 export interface TranslationIdentity {
@@ -87,7 +70,6 @@ declare module '@deepseek-ai/dsh-session/types' {
 }
 
 /** Failures distinct from caller cancellation and service disposal. */
-export type TranslationErrorCode = 'TRANSLATION_TEXT_LIMIT' | 'TRANSLATION_HTTP_ERROR'
-  | 'TRANSLATION_INVALID_RESPONSE' | 'TRANSLATION_RESPONSE_LIMIT' | 'TRANSLATION_REQUEST_FAILED' | 'TRANSLATION_TIMEOUT'
+export type TranslationErrorCode = 'TRANSLATION_TEXT_LIMIT' | 'TRANSLATION_INVALID_RESPONSE' | 'TRANSLATION_RESPONSE_LIMIT' | 'TRANSLATION_REQUEST_FAILED' | 'TRANSLATION_TIMEOUT'
   | 'TRANSLATION_SESSION_REQUIRED' | 'TRANSLATION_SESSION_INACTIVE' | 'TRANSLATION_STORAGE_ERROR'
   | 'TRANSLATION_UNAVAILABLE'

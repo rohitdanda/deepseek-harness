@@ -1,6 +1,6 @@
 - dialog "Set up voice input before recording":
   - heading "Set up voice input before recording" [level=2]
   - button "Cancel"
-  - paragraph: Voice input is enabled. First use requires downloading and preparing local recognition models. Open the plugin details to review disk space, memory and time estimates before starting setup.
+  - paragraph: Voice input is enabled, but its local recognition model files were not found. Check the model paths in the plugin configuration, then open the plugin details to prepare it.
   - button "Later"
   - button "Go to setup"

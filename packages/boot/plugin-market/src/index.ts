@@ -11,10 +11,7 @@ import type { BundleInfo } from '@deepseek-ai/dsh-plugin-manager/types'
 import { pinnedGitOrigin } from '@deepseek-ai/dsh-plugin-manager'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import {
-  DetailFailure, detailImageResponse, languageChain, NPM_FILE_SOURCES, npmFileSourceOrder, npmFiles,
-} from '@deepseek-ai/dsh-plugin-detail'
-import type { NpmFileSource } from '@deepseek-ai/dsh-plugin-detail/types'
+import { DetailFailure, detailImageResponse, languageChain } from '@deepseek-ai/dsh-plugin-detail'
 import { DetailReader, repositoryOf, type DetailLocation, type RepositoryLocation } from './detail.ts'
 import { repositoryFiles, type RepositoryFileOptions } from './detail-files.ts'
 import { normalizeIndexUrl } from './index-url.ts'
@@ -62,8 +59,6 @@ export interface Config {
   detailCacheDir?: string
   /** Deadline of one Git command of the clone fallback. */
   detailGitTimeoutMs: number
-  /** npm file CDNs read in order; a read's `npmFileSources` moves the CDNs it names first. */
-  detailNpmFileSources: NpmFileSource[]
   /** Hosts serving the GitLab repository files API. */
   detailGitlabHosts: string[]
 }
@@ -85,9 +80,6 @@ function causeChainOf(error: unknown, depth = 0): string {
 
 /** The Fetch route serving images beside detail documents. */
 const DETAIL_FILE_PATH = '/api/plugin-market/detail-file'
-
-/** Registries whose packages the public npm file CDNs serve. */
-const PUBLIC_REGISTRIES = new Set(['registry.npmjs.org', 'registry.npmmirror.com'])
 
 /** Largest page `search` returns. */
 const MAX_LIMIT = 100
@@ -120,7 +112,6 @@ export default class PluginMarket extends TypertRemoteService {
     detailCacheMaxBytes: z.natural().min(1).default(500 * 1024 * 1024),
     detailCacheDir: z.string(),
     detailGitTimeoutMs: z.natural().min(1).max(MAX_TIMER_DELAY_MS).default(60000),
-    detailNpmFileSources: z.array(z.union(NPM_FILE_SOURCES)).min(1).default([...NPM_FILE_SOURCES]),
     detailGitlabHosts: z.array(z.string()).default(['gitlab.com']),
   })
 
@@ -267,25 +258,22 @@ export default class PluginMarket extends TypertRemoteService {
   }
 
   /**
-   * Read the long description of one listed version of a plugin market entry, from the version's source: the npm file
-   * CDNs for a public npm version, or its pinned Git commit. The Markdown file the package's locale `meta.detail` names
-   * in `language` comes first, then the package's README, then the README of the entry's `repository`, or for an npm
-   * version without one, of its `package.json` `repository`, at the default branch. An npm version from another
-   * registry has no readable package files, so only the entry's `repository` is read.
+   * Read the long description of one listed version of a plugin market entry. A Git version is read from its pinned
+   * commit: the Markdown file the package's locale `meta.detail` names in `language` comes first, then the package's
+   * README, then the README of the entry's `repository` at the default branch. An npm version has no readable package
+   * files, so only the entry's `repository` is read.
    * @param url - a configured index URL.
    * @param name - the plugin's package name.
    * @param version - one listed version.
    * @param language - the display language, such as `zh-CN`; documents fall back through its prefixes to English.
-   * @param options - `refresh` reads again instead of reusing a result cached for `cacheTtlMs`; `npmFileSources` names
-   *   npm file CDNs to ask first for an npm version, in order; configured CDNs it omits follow, and CDNs that are not
-   *   configured are not asked.
+   * @param options - `refresh` reads again instead of reusing a result cached for `cacheTtlMs`.
    * @returns the document with its origin and image document id, or `none`.
    * @throws {RemoteError} the failures of `search`, `plugin-market/unknown-plugin` for an unlisted plugin or version,
    *   `plugin-market/invalid-query`, or `plugin-market/detail-unavailable`.
    */
   @Remote
   async readEntryDetail(
-    url: string, name: string, version: string, language: string, options?: { refresh?: boolean; npmFileSources?: NpmFileSource[] },
+    url: string, name: string, version: string, language: string, options?: { refresh?: boolean },
   ): Promise<PluginDetail> {
     const languages = this.languages(language)
     const plugin = (await this.document(url, false)).index.plugins.find(candidate => candidate.name === name)
@@ -306,8 +294,6 @@ export default class PluginMarket extends TypertRemoteService {
       // A repository that names the source directory itself adds nothing to the source.
       if (repository?.url === ref.url && repository.directory === dir) repository = undefined
       location = { files: repositoryFiles(ref, source.commit, this.detailRepositoryOptions()), dir, repository }
-    } else if (source.registry === undefined || PUBLIC_REGISTRIES.has(new URL(source.registry).host)) {
-      location = this.npmLocation(name, version, repository ?? 'manifest', options?.npmFileSources ?? [])
     } else {
       location = { dir: '', repository }
     }
@@ -328,12 +314,6 @@ export default class PluginMarket extends TypertRemoteService {
       timeoutMs: config.fetchTimeoutMs, lifetime: this.lifetime.signal,
       gitlabHosts: config.detailGitlabHosts.map(host => host.toLowerCase()), cache: this.repositories,
     }
-  }
-
-  /** The detail location of a published npm version on the configured CDNs, the preferred ones first. */
-  private npmLocation(name: string, version: string, repository: RepositoryLocation | 'manifest', preferred: readonly string[]): DetailLocation {
-    const sources = npmFileSourceOrder(this.config.detailNpmFileSources, preferred)
-    return { dir: '', repository, files: npmFiles(name, version, sources, { timeoutMs: this.config.fetchTimeoutMs, lifetime: this.lifetime.signal }) }
   }
 
   private async readDetail(location: DetailLocation, languages: readonly string[], refresh: boolean): Promise<PluginDetail> {

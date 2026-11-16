@@ -10,8 +10,6 @@
 - button "Tool call subagent_claude_code · Read the fixture response"
 - paragraph: Waiting for the child result.
 - button "Copy"
-- button "Good response"
-- button "Bad response"
 - button "Branch into a new conversation"
 - text: {{clock}}
 - button "Subagent run completed {{clock}}":
@@ -21,7 +19,5 @@
 - button "Completed in {{duration}}" [disabled]
 - paragraph: DONE
 - button "Copy"
-- button "Good response"
-- button "Bad response"
 - button "Branch into a new conversation"
 - text: {{clock}}

@@ -16,9 +16,6 @@ export { HarnessError }
  */
 export const LLM_FAILURE_CODES = {
   ABORTED: {},
-  ACCOUNT_QUOTA: {},
-  ACCOUNT_SIGN_IN_REQUIRED: {},
-  ACCOUNT_TOKEN_INVALID: {},
   AUTH: {},
   CLIENT_UPGRADE_REQUIRED: {},
   CONTEXT_WINDOW_EXCEEDED: {},
@@ -83,9 +80,6 @@ export const CONTEXT_WINDOW_EXCEEDED_CODE = 'CONTEXT_WINDOW_EXCEEDED' satisfies 
 
 /** Canonical provider-neutral code for an exhausted account quota or balance. */
 export const QUOTA_EXCEEDED_CODE = 'QUOTA' satisfies BuiltinLlmFailureCode
-
-/** Account-token quota that can be replenished through the first-party billing page. */
-export const ACCOUNT_QUOTA_EXCEEDED_CODE = 'ACCOUNT_QUOTA' satisfies BuiltinLlmFailureCode
 
 /**
  * Canonical provider-neutral code for a response that completed normally but

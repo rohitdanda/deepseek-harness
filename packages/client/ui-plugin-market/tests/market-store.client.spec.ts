@@ -52,11 +52,10 @@ function setup(indexes: MarketIndexSummary[] = [{ url: A }, { url: B }]) {
       (_url: string, _name: string, _version: string, _language: string, _options: object): Promise<Answer<PluginDetail>> => ok({ status: 'none' }),
     ),
   }
-  const probe = { fastest: vi.fn((): Promise<Answer<string | null>> => ok('https://registry.npmmirror.com/')) }
-  new TestRemote(ctx, { pluginMarket: market, pluginRegistryProbe: probe })
+  new TestRemote(ctx, { pluginMarket: market })
   const controller = new DiscoverController(ctx, () => 'https://dsh.example/prefix/')
   const face = controller.face(text => typeof text === 'string' ? text : text.en)
-  return { controller, face, market, probe, state, snapshot: () => controller.store.getSnapshot() }
+  return { controller, face, market, state, snapshot: () => controller.store.getSnapshot() }
 }
 
 describe('DiscoverController', () => {
@@ -359,8 +358,8 @@ describe('DiscoverController', () => {
 })
 
 describe('detail reads', () => {
-  const BUNDLE = { url: A, name: 'b', version: '1.0.0', npm: true } as const
-  const ENTRY = { url: B, name: 'e', version: '2.0.0', npm: false } as const
+  const BUNDLE = { url: A, name: 'b', version: '1.0.0' } as const
+  const ENTRY = { url: B, name: 'e', version: '2.0.0' } as const
   const FOUND: PluginDetail = { status: 'found', origin: 'readme', markdown: '# B', document: brandString<PluginDetailDocumentId>('doc') }
 
   it('reads each plugin once per language and publishes the result', async () => {
@@ -372,17 +371,13 @@ describe('detail reads', () => {
     await vi.waitFor(() => { expect(controller.details.getSnapshot()[detailKey(BUNDLE, 'en')]).toEqual({ status: 'ready', detail: FOUND }) })
     face.loadDetail(ENTRY, 'zh')
     await vi.waitFor(() => { expect(controller.details.getSnapshot()[detailKey(ENTRY, 'zh')]).toEqual({ status: 'ready', detail: { status: 'none' } }) })
-    // An npm version asks the registry comparison and reads npmmirror first where it won; a Git version does not ask.
-    expect(market.readEntryDetail.mock.calls).toEqual([
-      [A, 'b', '1.0.0', 'en', { refresh: false, npmFileSources: ['npmmirror'] }], [B, 'e', '2.0.0', 'zh', { refresh: false, npmFileSources: [] }],
-    ])
+    expect(market.readEntryDetail.mock.calls).toEqual([[A, 'b', '1.0.0', 'en', { refresh: false }], [B, 'e', '2.0.0', 'zh', { refresh: false }]])
   })
 
   it('reports failures by reason and reads again on retry', async () => {
     const { controller, face, market } = setup()
-    // The Git entry's read starts at once; the npm one waits for the registry comparison, so answers go by name.
-    market.readEntryDetail.mockImplementationOnce(() => fail('plugin-market/unknown-plugin', 'gone', { name: 'e', version: '2.0.0' }))
     market.readEntryDetail.mockImplementationOnce(() => fail('plugin-market/detail-unavailable', 'big', { reason: 'too-large' }))
+    market.readEntryDetail.mockImplementationOnce(() => fail('plugin-market/unknown-plugin', 'gone', { name: 'e', version: '2.0.0' }))
     face.loadDetail(BUNDLE, 'en')
     face.loadDetail(ENTRY, 'en')
     await vi.waitFor(() => {
@@ -392,7 +387,7 @@ describe('detail reads', () => {
     face.retryDetail(BUNDLE, 'en')
     await vi.waitFor(() => { expect(controller.details.getSnapshot()[detailKey(BUNDLE, 'en')]).toEqual({ status: 'ready', detail: { status: 'none' } }) })
     // A retry bypasses the Host's cached result.
-    expect(market.readEntryDetail.mock.calls.at(-1)).toEqual([A, 'b', '1.0.0', 'en', { refresh: true, npmFileSources: ['npmmirror'] }])
+    expect(market.readEntryDetail.mock.calls.at(-1)).toEqual([A, 'b', '1.0.0', 'en', { refresh: true }])
   })
 
   it('settles a retried read with the retry\'s answer', async () => {
@@ -429,36 +424,13 @@ describe('detail reads', () => {
     market.readEntryDetail.mockImplementationOnce(() => new Promise((resolve) => { stale = resolve }))
     controller.detailsReset()
     face.loadDetail(BUNDLE, 'en')
-    await vi.waitFor(() => { expect(market.readEntryDetail).toHaveBeenCalledTimes(3) })
+    await vi.waitFor(() => { expect(market.readEntryDetail).toHaveBeenCalledTimes(4) })
     controller.detailsReset()
     face.loadDetail(BUNDLE, 'en')
     await vi.waitFor(() => { expect(controller.details.getSnapshot()[detailKey(BUNDLE, 'en')]).toEqual({ status: 'ready', detail: { status: 'none' } }) })
     stale({ ok: true, value: FOUND })
     await new Promise((resolve) => { setTimeout(resolve, 0) })
     expect(controller.details.getSnapshot()[detailKey(BUNDLE, 'en')]).toEqual({ status: 'ready', detail: { status: 'none' } })
-  })
-
-  it('keeps the configured CDN order where npmmirror did not answer fastest', async () => {
-    const { controller, face, market, probe } = setup()
-    probe.fastest.mockImplementationOnce(() => ok('https://registry.npmjs.org/'))
-    face.loadDetail(BUNDLE, 'en')
-    await vi.waitFor(() => { expect(controller.details.getSnapshot()[detailKey(BUNDLE, 'en')]?.status).toBe('ready') })
-    expect(market.readEntryDetail.mock.calls).toEqual([[A, 'b', '1.0.0', 'en', { refresh: false, npmFileSources: [] }]])
-  })
-
-  it('drops a read whose registry comparison settles after a reset or disposal, without asking the Host', async () => {
-    const { controller, face, market, probe } = setup()
-    let settle: (value: Answer<string | null>) => void = () => {}
-    probe.fastest.mockImplementation(() => new Promise((resolve) => { settle = resolve }))
-    face.loadDetail(BUNDLE, 'en')
-    controller.detailsReset()
-    settle({ ok: true, value: null })
-    await new Promise((resolve) => { setTimeout(resolve, 0) })
-    face.loadDetail(BUNDLE, 'en')
-    controller.dispose()
-    settle({ ok: true, value: null })
-    await new Promise((resolve) => { setTimeout(resolve, 0) })
-    expect(market.readEntryDetail).not.toHaveBeenCalled()
   })
 
   it('stops publishing detail reads after disposal', async () => {

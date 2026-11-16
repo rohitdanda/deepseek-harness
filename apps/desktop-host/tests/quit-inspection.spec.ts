@@ -65,7 +65,7 @@ describe('Desktop Host quit inspection', () => {
     expect(await inspect()).toEqual({ activeTasks: false, scheduledTasks: false })
   })
 
-  it.each(['running', 'nextTurn', 'nextStep', 'job'] as const)('counts %s work with the same rule as the update restart check', async (kind) => {
+  it.each(['running', 'nextTurn', 'nextStep', 'job'] as const)('counts %s work as interruptible work', async (kind) => {
     const owner = agent('busy')
     if (kind === 'running') owner.status = 'running'
     else if (kind === 'job') jobs.set(owner.id, ['stopping'])

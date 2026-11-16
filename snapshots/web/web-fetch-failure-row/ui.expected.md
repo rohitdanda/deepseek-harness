@@ -20,8 +20,6 @@
 - button "Think The user asked me to fetch the URL, then reply with exactly \"DONE\". I've fetched it. Now I just reply with \"DONE\"."
 - paragraph: DONE
 - button "Copy"
-- button "Good response"
-- button "Bad response"
 - button "Branch into a new conversation"
 - text: 7/26 {{clock}}
 - textbox "Message or run a task, / commands, @ files or sessions"

@@ -21,17 +21,17 @@
   en: bb889e9514678d1c
   zh: 48cbec1e907d6a2b
 /windows-signing-and-runner-operations/machine-setup-and-runner-startup/supervised-startup:
-  en: cada81c15a20ecc2
-  zh: 80b7a4af7b1e0e5d
+  en: daa6c68f1b09a280
+  zh: 210fe960082e5db3
 /windows-signing-and-runner-operations/machine-setup-and-runner-startup/optional-network-dependency:
   en: 60f34f8637b3c252
   zh: 805435964ab20263
 /windows-signing-and-runner-operations/signing-configuration:
-  en: 4b5548818375eb9a
-  zh: 8c975adbb1dca9c8
+  en: a806a76af6b823aa
+  zh: e20cc0c23827fe82
 /windows-signing-and-runner-operations/signing-and-timestamp-completion:
-  en: a8d23c931cafc236
-  zh: 28fd4860549cdc7b
+  en: 667681024b4295e2
+  zh: 9e9ad259622b0f0c
 /windows-signing-and-runner-operations/failure-records-and-operator-recovery:
   en: 5401b605a2f3a44e
   zh: fc1f6ee667bcd20d
@@ -39,8 +39,8 @@
   en: 6e8208d19ad510e5
   zh: eee42e8938c0f603
 /windows-signing-and-runner-operations/verification-limits:
-  en: 53f1fe23f54af84e
-  zh: d219606367ff2d72
+  en: 10cf7800f27d3cf1
+  zh: 0d82a1ee15be001e
 /windows-signing-and-runner-operations/dev-note:
   en: b75c8458928b72b9
   zh: 003ba4e17b4b5269

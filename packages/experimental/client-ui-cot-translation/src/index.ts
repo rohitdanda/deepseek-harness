@@ -12,7 +12,7 @@ import type { CotTranslationPreferences, CotTranslationSnapshot } from './types.
 
 /** Live preferences presented on the bundle's Plugins page. */
 export interface Config {
-  /** Explicit translation provider, defaulting to Bing. */
+  /** Explicit translation provider, defaulting to the official DeepSeek API route. */
   provider: Volatile<CotTranslationPreferences['provider']>
   /** Target language code; auto follows the browser UI locale. */
   targetLanguage: Volatile<string>
@@ -29,7 +29,7 @@ declare module '@deepseek-ai/cordis' {
 export default class CotTranslationController extends TypertRemoteService {
   static inject = ['translator', 'typert', 'sessionController']
   static Config = z.object({
-    provider: z.union(PROVIDER_PREFERENCES).default('bing').volatile(),
+    provider: z.union(PROVIDER_PREFERENCES).default('deepseek-official').volatile(),
     targetLanguage: z.string().pattern(LANGUAGE_PREFERENCE_PATTERN).default('auto').volatile(),
   })
 
@@ -68,7 +68,7 @@ export default class CotTranslationController extends TypertRemoteService {
       try {
         return await this.ctx.translator.translate(spec, signal)
       } catch (error) {
-        if (!(error instanceof TranslationError) || error.code !== 'TRANSLATION_SESSION_INACTIVE' || spec.sessionId === undefined) throw error
+        if (!(error instanceof TranslationError) || error.code !== 'TRANSLATION_SESSION_INACTIVE') throw error
       }
       signal.throwIfAborted()
       const activation = this.ctx.sessionController.resolveAgent(spec.sessionId).then((result) => {
@@ -91,11 +91,8 @@ export default class CotTranslationController extends TypertRemoteService {
   }
 
   private resolveSelected(request: TranslationRequest): TranslationSpec {
-    const accepted = this.config.provider.get()
-    const provider = request.provider ?? accepted
-    if (provider !== accepted) throw new Error('Translation provider is not selected')
     const targetLanguage = this.config.targetLanguage.get()
     if (targetLanguage !== 'auto' && request.targetLanguage !== targetLanguage) throw new Error('Translation language is not selected')
-    return this.ctx.translator.resolve({ ...request, provider })
+    return this.ctx.translator.resolve({ ...request, provider: this.config.provider.get() })
   }
 }

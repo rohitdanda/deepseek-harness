@@ -1,4 +1,4 @@
-/** Environment variable that carries the build version through one packaging and upload run. */
+/** Environment variable that carries the build version through one packaging run. */
 export const DESKTOP_BUILD_VERSION_ENV: 'DSH_DESKTOP_BUILD_VERSION'
 
 /**
@@ -11,7 +11,7 @@ export function validateDesktopBuildVersion(buildVersion: string, productVersion
 
 /**
  * Resolve the version a build publishes.
- * @param env - Packaging or upload environment.
+ * @param env - Packaging environment.
  * @param productVersion - Version the manifests declare.
  * @returns The build version when one is present, otherwise the product version.
  */

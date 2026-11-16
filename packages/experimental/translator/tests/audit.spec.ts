@@ -20,7 +20,7 @@ afterEach(async () => {
   if (failures.length > 0) throw new AggregateError(failures, 'Paid storage fixture teardown failed')
 })
 
-const providers = ['deepseek-account', 'deepseek-official'] as const
+const providers = ['deepseek-official'] as const
 const requests = (events: readonly SessionEvent[]) => events.filter(event => pluginRecordOf(event)?.type === 'plugin:translator/request')
 const results = (events: readonly SessionEvent[]) => events.filter(event => pluginRecordOf(event)?.type === 'plugin:translator/result')
 
@@ -95,11 +95,10 @@ describe('common paid translation persistence', () => {
       expect(results(committed)).toHaveLength(1)
       expect(results(committed)[0]).toMatchObject({ ignorable: true, data: { requestSeq: requests(committed)[0]?.seq, text: '翻译结果' } })
       b.setConfigured(false)
-      b.setSignedIn(false)
       await b.restart({ withNativeOwners: unavailable !== 'native-owner' })
       expect(b.ctx).not.toBe(oldContext)
       expect(b.ctx.sessions.list()).toEqual([])
-      expect(await b.ctx.translator.availableProviders()).toEqual(['bing', 'google'])
+      expect(await b.ctx.translator.availableProviders()).toEqual([])
       expect(await b.ctx.translator.translate(specification())).toBe('翻译结果')
       expect(await b.readEvents(id)).toEqual(committed)
       expect(b.requests).toHaveLength(1)

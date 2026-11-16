@@ -12,7 +12,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
-const identity: TranslationIdentity = { provider: 'bing', text: 'source', sourceLanguage: 'auto', targetLanguage: 'zh', recipe: 'fixture' }
+const identity: TranslationIdentity = { provider: 'deepseek-official', text: 'source', sourceLanguage: 'auto', targetLanguage: 'zh', recipe: 'fixture' }
 const stages = ['request', 'result'] as const
 
 describe('storage helper failures', () => {

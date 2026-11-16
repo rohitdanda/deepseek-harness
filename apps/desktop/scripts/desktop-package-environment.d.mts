@@ -3,13 +3,12 @@
 /**
  * Select local macOS test defaults without reading dotenv files or inheriting release settings.
  * @param environment Parent environment, retained for build tools and networking.
- * @returns Unsigned build environment with the standard application identifier and no update policy.
+ * @returns Unsigned build environment with the standard application identifier.
  */
 export function localMacOSPackageEnvironment(environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv
 
 /**
  * Read a machine preset when selected, otherwise the target's required dotenv; no ambient release fallback.
- * PACKAGE_TEST_RELEASE_ID overrides the test preset only; blank retains its configured ID.
  * PACKAGE_MACOS_ZIP_COMPRESSION_LEVEL overrides the Mac file setting with 3 or 7; an empty value is invalid.
  * Any defined Mac ZIP override rejects Windows, including an empty value; nonempty Windows overrides reject macOS.
  * PACKAGE_WINDOWS_COMPRESSION_LEVEL selects 3 or 7 for Windows workflow builds; blank retains the file setting.

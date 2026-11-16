@@ -7,6 +7,8 @@
       name: '@deepseek-ai/dsh-experimental-speech-to-text-sensevoice'
       config:
         dataRoot: !!js dshHomePath('speech-to-text', 'sensevoice')
+        modelDirectory: !!js dshHomePath('speech-to-text', 'sensevoice', 'models', 'sensevoice-onnx')
+        vadModelPath: !!js dshHomePath('speech-to-text', 'sensevoice', 'models', 'silero', 'silero_vad.onnx')
     - id: api-speech-to-text
       name: '@deepseek-ai/dsh-experimental-api-speech-to-text'
     - id: ui-voice-input

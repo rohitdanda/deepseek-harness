@@ -18,7 +18,7 @@ The APIs register as `deepseek-search-api` and `deepseek-fetch-api`. Messages se
 
 Direct retrieval appends `/search` or `/fetch` to an API base. A capability without its own YAML endpoint fields uses the origin of the conversation's DeepSeek model route base URL with `/v1/tools`, which for the public deployment is the guide's `https://api.deepseek.com/v1/tools`; the [selection decision](../architecture/2026-10-29-web-provider-selection.md) owns that derivation and the credential each operation sends. The verified development base is `http://api-dev.deepseek.com:8031/api/v1/tools`; its prefix differs and is never inferred from the hostname, so such a deployment sets the complete base in `searchBaseURL` or `fetchBaseURL`. An unparseable base leaves that capability's provider unavailable.
 
-The guide specifies API-key Bearer authentication, and requests send only the documented authorization and JSON content type. A conversation on the `deepseek-account` route sends the account token instead; the public Search and Fetch routes accepted it on 2026-10-16, so account-only users have direct retrieval. An Anthropic-compatible gateway checked the same day served Messages web search and had no `/v1/tools` routes; such deployments can select Messages search or set the capability's own base URL to one that serves `/v1/tools`.
+The guide specifies API-key Bearer authentication, and requests send only the documented authorization and JSON content type. An Anthropic-compatible gateway checked the same day served Messages web search and had no `/v1/tools` routes; such deployments can select Messages search or set the capability's own base URL to one that serves `/v1/tools`.
 
 ### Search results and model input
 
@@ -36,7 +36,7 @@ The HTTP provider retains its own URL validation and resource limits. Selecting 
 
 ### Default migration
 
-The shipped composition selects `deepseek-search-api`; the [selection decision](../architecture/2026-10-29-web-provider-selection.md) owns that default and its no-fallback rule. API keys and account tokens both reach the public routes. Deployments behind a gateway without `/v1/tools` routes set `searchBaseURL` to a base that serves them. A stored `web.searchProvider: deepseek-official` selects Messages search, and any other stored selection keeps its provider.
+The shipped composition selects `deepseek-search-api`; the [selection decision](../architecture/2026-10-29-web-provider-selection.md) owns that default and its no-fallback rule. Deployments behind a gateway without `/v1/tools` routes set `searchBaseURL` to a base that serves them. A stored `web.searchProvider: deepseek-official` selects Messages search, and any other stored selection keeps its provider.
 
 ### Legacy Messages search
 
@@ -70,7 +70,7 @@ Search and Fetch each have an account-wide 5 QPS limit, independent of model con
 
 ## Verification and remaining API adoption
 
-Provider tests cover request mapping, empty results, malformed responses, independent and derived bases, account-token authentication and its invalidation after HTTP 401, cancellation, and blank configuration. Settings tests and the [plugin configuration browser scenario](../../../../apps/web/tests/plugin-config.e2e.ts) cover staged saves, the result count, and independent Search and Fetch selection. The [web search replay](../../../../apps/web/tests/web-search-round.e2e.ts) and [Fetch Session replay](../../../../snapshots/session/deepseek-fetch/snapshot.yml) pin model-visible results. On 2026-10-16 the [real provider tests](../../../../packages/web/web-deepseek-api/tests/web-deepseek-api.e2e.ts) passed Search and Fetch against the public base, and a headless round on the shipped profile returned eight sources and fetched Markdown without an auxiliary request event. The account-token, gateway, and status observations above come from manual probes the same day.
+Provider tests cover request mapping, empty results, malformed responses, independent and derived bases, cancellation, and blank configuration. Settings tests and the [plugin configuration browser scenario](../../../../apps/web/tests/plugin-config.e2e.ts) cover staged saves, the result count, and independent Search and Fetch selection. The [web search replay](../../../../apps/web/tests/web-search-round.e2e.ts) and [Fetch Session replay](../../../../snapshots/session/deepseek-fetch/snapshot.yml) pin model-visible results. On 2026-10-16 the [real provider tests](../../../../packages/web/web-deepseek-api/tests/web-deepseek-api.e2e.ts) passed Search and Fetch against the public base, and a headless round on the shipped profile returned eight sources and fetched Markdown without an auxiliary request event. The gateway and status observations above come from manual probes the same day.
 
 The following capabilities remain outside the implemented integration:
 

@@ -265,7 +265,7 @@ def _runtime(
             initialize_timeout_seconds=60, request_timeout_seconds=20, shutdown_timeout_seconds=20,
             on_user_question=on_user_question,
             env={"DSH_PERMISSION_MODE": initial_permission,
-                 "DSH_TELEMETRY_DISABLED": "1", "DSH_TOOLS_MODE": "native"},
+                 "DSH_TOOLS_MODE": "native"},
         )
         try:
             harness.start()
@@ -500,10 +500,10 @@ def test_unknown_slash_and_compact_arguments_follow_the_plain_prompt_path(tmp_pa
     assert len(_of_type(events, "turn/start")) == len(_of_type(events, "turn/end")) == 2
 
 
-def test_unimplemented_slash_remains_plain_text_without_recording_feedback(tmp_path: Path) -> None:
-    input_text = "/feedback DSH_FEEDBACK_TEXT_INPUT"
+def test_unimplemented_slash_remains_plain_text(tmp_path: Path) -> None:
+    input_text = "/unimplemented DSH_UNIMPLEMENTED_TEXT_INPUT"
     following = "DSH_AFTER_PLAN_TEXT_INPUT"
-    reply_before = "DSH_FEEDBACK_TEXT_REPLY"
+    reply_before = "DSH_UNIMPLEMENTED_TEXT_REPLY"
     reply = "DSH_AFTER_PLAN_TEXT_REPLY"
     with _runtime(tmp_path, [_Completion(reply_before), _Completion(reply)]) as runtime:
         session = runtime.harness.start_session(_SESSION_ID)
@@ -520,7 +520,6 @@ def test_unimplemented_slash_remains_plain_text_without_recording_feedback(tmp_p
         assert initial["tools"] == continued["tools"]
     events = _read_events(runtime.logs)
     assert not _of_type(events, "command/run")
-    assert not any(event["type"].startswith("feedback/") for event in events)
     assert len(_of_type(events, "turn/start")) == len(_of_type(events, "turn/end")) == 2
 
 

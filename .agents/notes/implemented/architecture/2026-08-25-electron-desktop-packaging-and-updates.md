@@ -1,4 +1,4 @@
-# Agent Note: Package and update the Electron desktop application
+# Agent Note: Package the Electron desktop application
 
 Status: implemented
 
@@ -10,11 +10,11 @@ Desktop uses Electron as its Node runtime under the [current runtime reference](
 
 ## Problem
 
-DeepSeek Harness needs an Electron desktop application that reuses the Web UI, works without system Node.js or pnpm, installs dsh and desktop plugins through an application-bundled pnpm, and updates the complete desktop release through one user-facing flow.
+DeepSeek Harness needs an Electron desktop application that reuses the Web UI, works without system Node.js or pnpm, and installs dsh and desktop plugins through an application-bundled pnpm.
 
 The desktop application and an npm-installed dsh share the `.dsh` data root, but they may have different dsh and plugin versions. They must share supported product data without sharing executable packages, lockfiles, `node_modules`, plugin activation, or package-manager configuration.
 
-The current GUI protocol binds the Web client and backend release. Independently versioning the Electron artifact and its bundled dsh would create unqualified shell, client, backend, and plugin combinations and make update availability ambiguous.
+The current GUI protocol binds the Web client and backend release. Independently versioning the Electron artifact and its bundled dsh would create unqualified shell, client, backend, and plugin combinations.
 
 ## Decision
 
@@ -30,7 +30,7 @@ The Desktop Host exposes the shared Web plugin manager for its reserved profile 
 
 | Owner | Responsibility |
 |---|---|
-| Electron shell | Window and child lifecycle, reserved desktop profile preparation, native recovery, update coordination |
+| Electron shell | Window and child lifecycle, reserved desktop profile preparation, native recovery |
 | Electron RunAsNode and pnpm | Execute dsh and install desktop-project dependencies using pnpm’s normal configuration |
 | Desktop profile | External plugin dependencies, ordered enabled bundles, and shared links defined by the bundled-runtime decision |
 | Private Desktop Host package | Electron-only child-process entry and composition overlay installed with dsh but excluded from the public CLI package and npm publication |
@@ -39,8 +39,6 @@ The Desktop Host exposes the shared Web plugin manager for its reserved profile 
 | npm-installed dsh | Its own executable installation and user-managed profiles; no access to the reserved desktop profile or package state |
 
 The renderer uses `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true`. Preload provides boot readiness and failure reporting, native directory selection, theme synchronization, and Windows menu and appearance adapters. It exposes no raw `ipcRenderer`, filesystem access, shell commands, or pnpm arguments. Electron menus and native dialogs use typed English or Chinese copy with English fallback; Windows follows the main document’s language. The shared Web plugin manager owns its client copy.
-
-Update confirmations use the shell static origin because they must remain available without a ready Web Host. Their packaged documents and assets retain the same method and path restrictions as other local static assets.
 
 ## Filesystem layout
 
@@ -67,21 +65,17 @@ The process-lifetime Electron lock is the authoritative Desktop owner. Profile p
 
 Core materialization, first launch, plugin installation, and shared-module resolution follow the [bundled-runtime decision](2026-09-08-desktop-bundled-runtime-and-external-plugins.md). The actual Host composes enabled desktop plugins contributing `dsh.client` code when it starts.
 
-## Updates and recovery
+## Recovery
 
-Electron update uses one `electron-updater` release stream and signed `electron-builder` artifacts. Its version is the Desktop release version; there is no independent dsh manifest, compatibility range, or dsh-only update operation. A foreground install waits for an in-flight background check rather than reusing its result as an install result. The update dialog downloads and installs the Electron artifact, then restarts into the new release.
+Desktop has no updater: a release is a signed `electron-builder` artifact that the user installs manually. Its version is the Desktop release version; there is no independent dsh manifest, compatibility range, or dsh-only update operation.
 
 The [immediate-window reference](../../../../apps/desktop/README.md) owns the local loading page, direct Host startup, and recovery in the main window. Profile reconciliation follows the [bundled-runtime decision](2026-09-08-desktop-bundled-runtime-and-external-plugins.md).
-
-`DSH_DESKTOP_AUTO_UPDATE_ENV` selects the test deployment by default or the production deployment for both the target-specific generic-provider URL and COS destination. Release automation supplies the test HTTPS origin through `DOWNLOAD_TEST_ORIGIN` and each deployment's bucket through `DOWNLOAD_TEST_COS_BUCKET` or `DOWNLOAD_PROD_COS_BUCKET`; keeping mutable test routing and COS storage identities out of source lets deployment infrastructure change without a code release, while the public production origin remains fixed. Packaging resolves only the public updater URL, disables electron-builder publishing, removes every COS credential field from its subprocess environment, and writes a completion record only after electron-builder and every signing or notarization hook succeeds. Target upload additionally requires the selected bucket, then requires the completion record, root dsh version, Desktop version, channel-selected metadata, artifact names, sizes, and SHA-512 values to agree before it reads the selected credentials or sends data. It uploads immutable versioned updater payloads and any separate blockmaps before replacing the channel metadata emitted by electron-builder, and it never deletes historical objects. The selected channel determines the metadata name: `stable.yml` or `nightly.yml`, with `-mac` before the extension for macOS; version suffixes do not select the channel. NSIS embeds its blockmap in the signed executable; the macOS ZIP carries a separate blockmap. Both let electron-updater download changed blocks when supported, while application replacement and the local pnpm package operation remain separate operations.
-
-Test releases require `DOWNLOAD_TEST_RELEASE_ID` from the platform dotenv file. Their feeds and binaries share `dsh-desk/<release-id>/`; production retains its fixed directories. The ID is part of the packaged update URL, so upload rejects a different ID. Internal distribution can supply a new installer after rotation; installed clients retain their existing feed. Random directories reduce guessing but provide no authorization for link holders. The [release configuration](../../../../apps/desktop/publishing/README.md#upload-updates) defines generation and reuse.
 
 ## Security and release policy
 
 Core dsh and the private Desktop Host come only from the signed application resource tree. Plugin installation forwards package specs to pnpm, including local and remote sources, but never accepts raw pnpm commands. pnpm owns dependency resolution and the profile’s `allowBuilds` policy; the Host loads activated bundles.
 
-Electron release artifacts are signed; macOS artifacts are notarized. Release package and upload commands read release settings from the Git-ignored target `.env.windows` or `.env.macos`; subprocesses receive the fields selected by orchestration. Windows packaging can instead select a machine-owned public `presets/<preset>.env`, plus `secrets/windows-signing.env` for signed builds; unsigned and preparation-only modes omit the signing file. The selected files exclusively own release fields so stale shell or system credentials cannot override local selection, and loading does not mutate the parent environment. Packaging validates the mode-specific application ID, update origin, signing identity, and local files before builds, downloads, or release-record cleanup; macOS also requires one complete notarization strategy. The separate `check:package` command runs the same validation without accessing the token or Apple; actual signing and notarization still verify authentication. Configuration loading rejects missing or malformed identifiers and incomplete notarization credentials, while macOS release packaging requires signing so certificate discovery cannot silently select another installed identity or emit an unsigned release. Runtime preparation verifies the exact Authority and Team ID plus the timestamp and hardened-runtime flags on every embedded Mach-O file. An after-sign hook performs Apple's deep strict application verification and requires the same leaf Authority and Team ID before artifact creation continues. The fixed-target installer command uses [isolated App copies for parallel notarization](../process/2026-09-09-parallel-macos-notarization.md): the ZIP contains a stapled App, while the signed DMG carries the ticket covering its unstapled inner App. The DMG artifact-completion hook requires the configured identity, a valid ticket, and Gatekeeper acceptance. Both artifact lanes must succeed before the command promotes their outputs and writes the release completion record; directory-only commands still notarize and staple the App. DMG blockmaps are disabled because macOS updates consume the signed ZIP, and stapling would otherwise invalidate an already-generated DMG blockmap.
+Electron release artifacts are signed; macOS artifacts are notarized. Release package commands read release settings from the Git-ignored target `.env.windows` or `.env.macos`; subprocesses receive the fields selected by orchestration. Windows packaging can instead select a machine-owned public `presets/<preset>.env`, plus `secrets/windows-signing.env` for signed builds; unsigned and preparation-only modes omit the signing file. The selected files exclusively own release fields so stale shell or system credentials cannot override local selection, and loading does not mutate the parent environment. Packaging validates the mode-specific application ID, signing identity, and local files before builds or downloads; macOS also requires one complete notarization strategy. The separate `check:package` command runs the same validation without accessing the token or Apple; actual signing and notarization still verify authentication. Configuration loading rejects missing or malformed identifiers and incomplete notarization credentials, while macOS release packaging requires signing so certificate discovery cannot silently select another installed identity or emit an unsigned release. Runtime preparation verifies the exact Authority and Team ID plus the timestamp and hardened-runtime flags on every embedded Mach-O file. An after-sign hook performs Apple's deep strict application verification and requires the same leaf Authority and Team ID before artifact creation continues. The fixed-target installer command uses [isolated App copies for parallel notarization](../process/2026-09-09-parallel-macos-notarization.md): the ZIP contains a stapled App, while the signed DMG carries the ticket covering its unstapled inner App. The DMG artifact-completion hook requires the configured identity, a valid ticket, and Gatekeeper acceptance. Both artifact lanes must succeed before the command promotes their outputs; directory-only commands still notarize and staple the App. DMG blockmaps are disabled because stapling would otherwise invalidate an already-generated DMG blockmap.
 
 The [pinned osx-sign patch](../../../../patches/@electron__osx-sign@1.3.3.patch) uses `lstat` in both published module builds, so Framework file and directory aliases do not trigger duplicate signing. The patch remains necessary until the selected upstream release skips those aliases. PAK files are resources sealed by the enclosing bundle; individual signatures add serial timestamp requests without additional resource integrity. Desktop preserves all locale files and skips only their standalone signatures. Executable code retains Developer ID signatures, secure timestamps, and hardened runtime. The [signer traversal regression](../../../../apps/desktop/tests/macos-signing-walk.spec.ts) exercises the installed dependency with real Framework aliases; release qualification still requires strict application verification, notarization, and startup.
 
@@ -89,7 +83,7 @@ Windows release packaging supplies the public EV leaf certificate named by `DSH_
 
 Windows package invocations force `ELECTRON_BUILDER_7Z_FILTER=BCJ`. The bundled 7-Zip 24.09 encoder automatically selects ARM64 filters for ARM64 PE files, but the NSIS decoder from `nsis-resources-3.4.1` omits those entries during extraction. A native extraction probe with the actual NSIS plugin loses both `node-pty` ARM64 binaries under automatic filtering and restores both byte-for-byte with BCJ. Keeping a compatible filter preserves dependency contents and runtime integrity instead of removing architecture-specific files or weakening verification.
 
-Local Windows and macOS installation testing uses an explicit `--unsigned` package invocation with the same build and runtime preparation. It strips certificate inputs, isolates artifacts in `unsigned-artifacts`, and omits updater configuration and the release completion record. macOS local builds ignore dotenv files and inherited release settings, use the standard application ID, and omit mandatory-update policy so local testing needs no deployment configuration. Their App receives a certificate-free ad-hoc signature; their DMG is unsigned and unnotarized. Windows local builds retain their platform configuration requirements. The regular package command explicitly selects signed mode even when its parent environment requests unsigned mode. This separation permits installation diagnosis without release credentials while preventing local test output from qualifying for release upload.
+Local Windows and macOS installation testing uses an explicit `--unsigned` package invocation with the same build and runtime preparation. It strips certificate inputs and isolates artifacts in `unsigned-artifacts`. macOS local builds ignore dotenv files and inherited release settings and use the standard application ID, so local testing needs no deployment configuration. Their App receives a certificate-free ad-hoc signature; their DMG is unsigned and unnotarized. Windows local builds retain their platform configuration requirements. The regular package command explicitly selects signed mode even when its parent environment requests unsigned mode. This separation permits installation diagnosis without release credentials while keeping local test output apart from release artifacts.
 
 Windows application replacement follows the [directory-installation reference](../../../../apps/desktop/packaging/README.md#runtime-file-selection): extract beside the destination with a command-line tool that returns failure status, then rename complete directories on the same volume. The installer retains the old directory through staging and restores it if promotion fails. Registration, shortcuts, and the signed uninstaller remain owned by electron-builder.
 
@@ -101,10 +95,10 @@ Architecture-specific builds report actual component-level compressed and instal
 
 | Surface | Implementation |
 |---|---|
-| Shell | `apps/desktop` owns Electron windows, restricted preloads, the custom protocol, child lifecycle, profile preparation, native recovery, update coordination, and electron-builder configuration. |
+| Shell | `apps/desktop` owns Electron windows, restricted preloads, the custom protocol, child lifecycle, profile preparation, native recovery, and electron-builder configuration. |
 | Installed runtime | Private `@deepseek-ai/dsh-desktop-host` invokes the shared profile runner and reports the authenticated Web URL to Electron. |
 | Package state | Electron RunAsNode executes immutable core resources; bundled pnpm modifies only the external plugin graph in the Desktop profile. |
-| Qualification | macOS packaging requires the configured company identity and notary credentials, verifies every native runtime file before inventory generation, verifies the completed application signature, and requires notarization plus Gatekeeper acceptance for both the application and DMG. Windows packaging requires the configured public certificate, SafeNet private-key container, Token Password, and SignTool, and verifies every produced signature. Update hosting, previous-version installed-artifact tests, and platform GUI recordings remain release-environment gates. |
+| Qualification | macOS packaging requires the configured company identity and notary credentials, verifies every native runtime file before inventory generation, verifies the completed application signature, and requires notarization plus Gatekeeper acceptance for both the application and DMG. Windows packaging requires the configured public certificate, SafeNet private-key container, Token Password, and SignTool, and verifies every produced signature. Platform GUI recordings remain release-environment gates. |
 
 `dev:desktop` builds the current workspace, projects the built CLI and private Desktop Host packages plus their dependency links into a disposable project, uses an isolated Harness home, opens the Main, Renderer, and Host debuggers, and starts unpackaged Electron without preparing release resources. The development runtime supplies workspace links to a separate plugin profile; plugin management and recovery use the same flow as packaged applications. Fixed macOS arm64, macOS x64, and Windows x64 package commands pass one target through runtime preparation, dsh preparation, and electron-builder; each also has an unpacked-directory variant for release-path verification before installer generation.
 
@@ -128,8 +122,6 @@ Architecture-specific builds report actual component-level compressed and instal
 
 **Store credentials in tracked scripts or system environment settings.** Local platform files keep configuration scoped to one checkout and make packaging inputs explicit. This accepts plaintext credentials at rest: the build account must restrict file access, CI must remove temporary configuration, and both Git and release file mappings must exclude real settings. Committed templates contain no credentials; the Windows CMD contains only variable references, signing stays serialized and stops on the first failure, and the file format does not exempt wrong PIN attempts from token counters.
 
-**Let electron-builder or a general directory sync publish directly.** A direct publisher can expose channel metadata before every referenced artifact exists, mix stale or cross-target files into a release, and cannot prove that the completed signed build still matches the current dsh version. A target-specific validated upload keeps publication ordering and release identity explicit.
-
 ## Consequences
 
 - A clean offline machine without system Node.js or pnpm starts bundled dsh without installing core dependencies.
@@ -141,13 +133,11 @@ Architecture-specific builds report actual component-level compressed and instal
 - npm/CLI dsh and Electron never resolve or install plugins from each other's `node_modules`.
 - The active backend and Web UI report the same dsh version and a compatible shell API before the product UI loads.
 - The shared plugin manager owns package-failure handling; native recovery handles fatal Host failures.
-- One Desktop version binds Electron and dsh; every dsh update arrives through one Electron update dialog and one user-visible restart.
+- One Desktop version binds Electron and dsh; every dsh update arrives as a new Desktop release that the user installs manually.
 - Shared `.dsh` data rejects incompatible readers before migration or mutation.
 - The Web application owns HTTP authentication and serving; the sandboxed renderer cannot access arbitrary filesystem or Electron APIs.
 - Workspace development runs current built code without downloading release resources, while unpacked-package verification retains the production installation path.
 - Windows release packaging requires the validated SignTool, EV token, matching public leaf certificate, Token Password, and explicit key container; it never falls back to an unsigned artifact or an exportable key file.
-- A target update cannot expose new channel metadata until the completed signed build and every referenced artifact pass release validation; retained historical artifacts remain available for differential updates.
-- Signed installed artifacts update successfully from the previous supported release on each release-blocking platform.
 
 ## Review decisions
 
@@ -158,7 +148,7 @@ Architecture-specific builds report actual component-level compressed and instal
 | Plugin management | Shared Web Plugins page and Host service with launcher-supplied bundled pnpm |
 | Activation | Shared manager applies configuration through HMR when enabled; otherwise changes require restart |
 | Initial platforms | macOS arm64/x64 and Windows x64; Linux has no supported release target |
-| Update behavior | Background check, explicit confirmation before differential download and restart, startup dsh reconciliation |
+| Update behavior | No updater; each Desktop release is installed manually, and startup reconciles dsh |
 
 ## Risks
 
@@ -170,7 +160,7 @@ An npm-installed dsh and desktop dsh may have different versions while sharing d
 
 Package-operation failure and cancellation follow the shared plugin manager’s restoration rules. Native recovery does not reinstall packages.
 
-Code signing, notarization, and update hosting require production release infrastructure. Repository tests alone cannot complete that qualification.
+Code signing and notarization require production release infrastructure. Repository tests alone cannot complete that qualification.
 
 ## Related proposals
 

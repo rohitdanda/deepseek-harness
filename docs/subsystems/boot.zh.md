@@ -14,7 +14,7 @@
 
 `InstallBundleOptions.saveExact` 向共享包安装器传入 `--save-exact`。`InstallBundleOptions.enabled` 默认为 true，false 表示安装但不选择组合包层。`approvedBuilds` 在安装前向指定的待审批包名授予持久脚本权限。`registry` 指定首先询问的注册表；缺省为配置的那个。`expected` 指定该 spec 必须安装的包与清单版本；安装了其他任何内容的运行会连同其 profile 文件与模块一起被撤销，并以 `unexpected-package` 失败，所安装的包未声明组合包的运行以 `not-bundle` 失败，组合包 patch 无法加载的运行则以操作错误失败。
 
-`BundleDetail` 是 profile 中组合包的详细介绍：`{ status: 'found' }` 携带其 `origin`（`locale` 或 `readme`）、在包内的 `path` 和 `markdown`；否则为 `{ status: 'none' }`。[`readBundleDetail`](../../packages/boot/plugin-manager/README.zh.md#bundle-detail-documents) 说明读取顺序和图片路由。`NpmFileSource` 指定一个公共 npm 文件 CDN：`jsdelivr`、`unpkg` 或 `npmmirror`；一次读取的 `npmFileSources` 列出先请求的 CDN。
+`BundleDetail` 是 profile 中组合包的详细介绍：`{ status: 'found' }` 携带其 `origin`（`locale` 或 `readme`）、在包内的 `path` 和 `markdown`；否则为 `{ status: 'none' }`。[`readBundleDetail`](../../packages/boot/plugin-manager/README.zh.md#bundle-detail-documents) 说明读取顺序和图片路由。
 
 `PluginRegistries` 携带配置的第一个注册表（`null` 即 pnpm 自身配置指定的那个）、随后依次询问的备选注册表，以及 `resolved`——pnpm 自身配置指向的 URL，未读到时为 `null`。`InspectOptions.registry` 指定一次查询首先询问的注册表。
 
@@ -205,16 +205,14 @@ Manage profile files and apply their declared reload lifecycle.
 /**
  * Read a bundle's long description: the Markdown file its locale `meta.detail` names in `language`, otherwise its
  * README. An installed bundle is read from its directory without network access; an official bundle the installation
- * offers before it is installed is read from the npm file CDNs at its offered version. Nothing is cached.
+ * offers before it is installed has no readable files. Nothing is cached.
  * @param name - the bundle's package name, as `listBundles()` lists it.
  * @param language - the display language, such as `zh-CN`; documents fall back through its prefixes to English.
- * @param options - `npmFileSources` names npm file CDNs to ask first for an offered bundle, in order, such as the one
- *   a Client measured as fastest; configured CDNs it omits follow, and CDNs that are not configured are not asked.
  * @returns the document with its origin and path, or `none`.
  * @throws {RemoteError} `plugin-manager/unknown-bundle`, `plugin-manager/invalid-language`, or
  *   `plugin-manager/detail-unavailable`.
  */
-@Remote async readBundleDetail(name: string, language: string, options?: { npmFileSources?: NpmFileSource[] }): Promise<BundleDetail>
+@Remote async readBundleDetail(name: string, language: string): Promise<BundleDetail>
 
 /** Read exact plugin-version exemptions saved in this profile.
  * @returns Accepted package-name@version keys with the runtime versions they may run on, and any
@@ -392,23 +390,20 @@ Fetches, validates, and caches configured market indexes; annotates entries with
 async entry(url: string, name: string): Promise<MarketListingEntry | undefined>
 
 /**
- * Read the long description of one listed version of a plugin market entry, from the version's source: the npm file
- * CDNs for a public npm version, or its pinned Git commit. The Markdown file the package's locale `meta.detail` names
- * in `language` comes first, then the package's README, then the README of the entry's `repository`, or for an npm
- * version without one, of its `package.json` `repository`, at the default branch. An npm version from another
- * registry has no readable package files, so only the entry's `repository` is read.
+ * Read the long description of one listed version of a plugin market entry. A Git version is read from its pinned
+ * commit: the Markdown file the package's locale `meta.detail` names in `language` comes first, then the package's
+ * README, then the README of the entry's `repository` at the default branch. An npm version has no readable package
+ * files, so only the entry's `repository` is read.
  * @param url - a configured index URL.
  * @param name - the plugin's package name.
  * @param version - one listed version.
  * @param language - the display language, such as `zh-CN`; documents fall back through its prefixes to English.
- * @param options - `refresh` reads again instead of reusing a result cached for `cacheTtlMs`; `npmFileSources` names
- *   npm file CDNs to ask first for an npm version, in order; configured CDNs it omits follow, and CDNs that are not
- *   configured are not asked.
+ * @param options - `refresh` reads again instead of reusing a result cached for `cacheTtlMs`.
  * @returns the document with its origin and image document id, or `none`.
  * @throws {RemoteError} the failures of `search`, `plugin-market/unknown-plugin` for an unlisted plugin or version,
  *   `plugin-market/invalid-query`, or `plugin-market/detail-unavailable`.
  */
-@Remote async readEntryDetail( url: string, name: string, version: string, language: string, options?: { refresh?: boolean; npmFileSources?: NpmFileSource[] }, ): Promise<PluginDetail>
+@Remote async readEntryDetail( url: string, name: string, version: string, language: string, options?: { refresh?: boolean }, ): Promise<PluginDetail>
 ```
 
 Source: [`packages/boot/plugin-market/src/index.ts`](../../packages/boot/plugin-market/src/index.ts)
@@ -432,24 +427,6 @@ Catalog lookups for card text and the enabling behind the `enable_official_plugi
 Types: [Agent](core.zh.md) · [ToolCallId](core.zh.md)
 
 Source: [`packages/experimental/plugin-recommendations/src/index.ts`](../../packages/experimental/plugin-recommendations/src/index.ts)
-
-<a id="ctxpluginregistryprobe--pluginregistryprobe"></a>
-
-### `ctx.pluginRegistryProbe` — `PluginRegistryProbe`
-
-Compares public registry responses on the Host; the Client owns the initial selection.
-
-```ts cordis-catalog
-/**
- * Race npm and npmmirror HTTPS ping responses through the Host's fetch proxy.
- * Concurrent readers share a probe; a winner cancels and awaits the other request.
- * @returns the first registry with a successful response, or null when disabled or neither responds successfully; results are cached.
- * @throws rejects when the service has been unloaded.
- */
-@Remote async fastest(): Promise<string | null>
-```
-
-Source: [`packages/client/ui-plugin-manager/src/index.ts`](../../packages/client/ui-plugin-manager/src/index.ts)
 
 <a id="ctxprofilecontext--profilecontext"></a>
 

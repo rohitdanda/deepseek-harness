@@ -8,7 +8,6 @@ const commands: readonly CommandDescriptor[] = [
   { name: 'plan', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-plan-mode'), description: 'Plan', input: { hint: 'Task' } },
   { name: 'goal', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-command-goal'), description: 'Goal', input: { hint: 'Goal' } },
   { name: 'permission', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-permission-presets'), description: 'Permission', input: { hint: 'Preset' } },
-  { name: 'feedback', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-command-feedback'), description: 'Feedback', input: { hint: 'Feedback' } },
   { name: 'export', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-session-log-export'), description: 'Export' },
 ]
 
@@ -43,7 +42,7 @@ describe('SDK query text recognition', () => {
 
   it.each(['ordinary text', '/', '/unknown', '/usr/bin', '/COMPACT', '/模型', '/文件',
     '/compact extra', '/压缩 extra', '/export path', '/model extra', '/file path',
-    '/plans inspect', '/goals finish', '/反馈 problem',
+    '/plans inspect', '/goals finish',
     '/permission', ' \n/permission \t', '/权限', '/权限\n\t', '/permissions read-only',
     '/导出', '/export', '/model', '/file'])('leaves %j as ordinary text', (text) => {
     expect(queryCommand(text, commands)).toBeUndefined()
@@ -59,7 +58,6 @@ describe('SDK query text recognition', () => {
   })
 
   it('leaves other registered commands and unavailable supported commands unchanged', () => {
-    expect(queryCommand('/feedback', commands)).toBeUndefined()
     expect(queryCommand('/goal', [])).toBeUndefined()
     expect(queryCommand('/plan', [])).toBeUndefined()
     expect(queryCommand('/compact', [])).toBeUndefined()

@@ -1,6 +1,6 @@
 # The Computer Use MCP application: a standalone profile composed from this one
 # insert over the empty profile root. No model turn ever runs here, so the
-# composition carries no model adapter, prompt-side tools, telemetry, or
+# composition carries no model adapter, prompt-side tools, or
 # session-management rows; stdout belongs exclusively to MCP JSON-RPC, and one
 # stdio connection owns one Agent whose cua_run_code programs retain state until
 # the client disconnects or calls cua_reset.

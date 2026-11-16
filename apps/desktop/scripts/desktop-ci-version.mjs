@@ -1,8 +1,8 @@
-/** Resolve manual Desktop CI build versions without release storage access. */
+/** Resolve manual Desktop CI build versions. */
 import { desktopBuildVersionPrefix, validateDesktopBuildVersion } from './desktop-build-version.mjs'
 
 /**
- * Resolve an explicit version or a UTC date/run/attempt identifier without release storage access.
+ * Resolve an explicit version or a UTC date/run/attempt identifier.
  * @param {NodeJS.ProcessEnv} environment Manual version and GitHub run identity.
  * @param {string} productVersion Version declared by the selected checkout.
  * @param {Date} now Time used for the UTC date segment.

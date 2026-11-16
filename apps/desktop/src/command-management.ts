@@ -6,7 +6,6 @@ import { userInfo } from 'node:os'
 import { promisify } from 'node:util'
 import type { MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import type { DesktopMessages } from './locale.ts'
-import type { UpdateDialogOptions } from './update-dialog.ts'
 
 interface CommandState {
   fingerprint: string
@@ -37,10 +36,9 @@ export interface CommandManagerOptions {
   readonly resources: string
   readonly isPackaged: boolean
   readonly isInstalledLocation: () => boolean
-  readonly isInstalling: () => boolean
   readonly isQuitting: () => boolean
   readonly messages: () => DesktopMessages
-  readonly show: (options: UpdateDialogOptions) => Promise<MessageBoxReturnValue>
+  readonly show: (options: MessageBoxOptions) => Promise<MessageBoxReturnValue>
 }
 
 class CommandWorkerError extends Error {
@@ -120,7 +118,7 @@ async function shellCommand(): Promise<{ activeCommand?: string; selectionUnknow
   return isAbsolute(value) && !/[\r\n]/u.test(value) ? { activeCommand: value } : { selectionUnknown: true }
 }
 
-/** One visible operation; updater preparation waits for its started worker to finish. */
+/** One visible operation at a time; repeated requests join the open one. */
 export class DesktopCommandManager {
   private operation: Promise<void> | undefined
 
@@ -131,9 +129,6 @@ export class DesktopCommandManager {
   show(): Promise<void> {
     return this.operation ??= this.run().finally(() => { this.operation = undefined })
   }
-
-  /** Wait for a command operation already started by the user. */
-  async idle(): Promise<void> { await this.operation }
 
   private async worker(operation: string, expected?: string, elevated = false): Promise<CommandState> {
     const node = join(this.options.resources, 'runtime', 'primary-runtime', 'dependencies', 'node', 'bin', process.platform === 'win32' ? 'node.exe' : 'node')
@@ -186,10 +181,6 @@ export class DesktopCommandManager {
       await this.options.show({ type: 'info', title: messages.cliCommandTitle, message: messages.cliCommandInstallApp, buttons: [messages.cliCommandClose] })
       return
     }
-    if (this.options.isInstalling()) {
-      await this.options.show({ type: 'info', title: messages.cliCommandTitle, message: messages.cliCommandUpdating, buttons: [messages.cliCommandClose] })
-      return
-    }
     try {
       const state = await this.inspect()
       const choice = await this.options.show(presentCommandManagement(state, messages, process.platform))
@@ -231,7 +222,7 @@ export class DesktopCommandManager {
       await this.options.show({
         type: 'error', title: messages.cliCommandTitle,
         message: code === 'ESTALE' ? messages.cliCommandChanged : code === 'EOWNERSHIP' ? messages.cliCommandOwnershipError : messages.cliCommandFailed,
-        technicalDetails: error instanceof Error ? error.message : '',
+        detail: error instanceof Error ? error.message : '',
         buttons: [messages.cliCommandClose],
       })
     }

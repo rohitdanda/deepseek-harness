@@ -14,7 +14,7 @@ The [boot package group](../../packages/boot/README.md) owns launcher-provided p
 
 `InstallBundleOptions.saveExact` passes `--save-exact` to the shared package installer. `InstallBundleOptions.enabled` defaults to true. False installs without selecting the bundle layer. `approvedBuilds` grants persistent script permission to the supplied pending package names before installation. `registry` names the registry asked first; absent, the configured one. `expected` names the package and manifest version the spec must install; a run that installs anything else is undone with its profile files and modules and fails with `unexpected-package`, one whose package declares no bundle fails with `not-bundle`, and one whose bundle patches cannot load fails as an operation error.
 
-`BundleDetail` is a profile bundle's long description: `{ status: 'found' }` with its `origin` (`locale` or `readme`), its `path` inside the package, and its `markdown`, or `{ status: 'none' }`; [`readBundleDetail`](../../packages/boot/plugin-manager/README.md#bundle-detail-documents) documents the order and the image route. `NpmFileSource` names a public npm file CDN, `jsdelivr`, `unpkg`, or `npmmirror`; a read's `npmFileSources` lists the ones to ask first.
+`BundleDetail` is a profile bundle's long description: `{ status: 'found' }` with its `origin` (`locale` or `readme`), its `path` inside the package, and its `markdown`, or `{ status: 'none' }`; [`readBundleDetail`](../../packages/boot/plugin-manager/README.md#bundle-detail-documents) documents the order and the image route.
 
 `PluginRegistries` carries the configured first registry, `null` for the one pnpm's own configuration names, the fallbacks asked after it, and `resolved`, the URL pnpm's own configuration names or `null` while unread. `InspectOptions.registry` names the registry a lookup asks first.
 
@@ -205,16 +205,14 @@ Manage profile files and apply their declared reload lifecycle.
 /**
  * Read a bundle's long description: the Markdown file its locale `meta.detail` names in `language`, otherwise its
  * README. An installed bundle is read from its directory without network access; an official bundle the installation
- * offers before it is installed is read from the npm file CDNs at its offered version. Nothing is cached.
+ * offers before it is installed has no readable files. Nothing is cached.
  * @param name - the bundle's package name, as `listBundles()` lists it.
  * @param language - the display language, such as `zh-CN`; documents fall back through its prefixes to English.
- * @param options - `npmFileSources` names npm file CDNs to ask first for an offered bundle, in order, such as the one
- *   a Client measured as fastest; configured CDNs it omits follow, and CDNs that are not configured are not asked.
  * @returns the document with its origin and path, or `none`.
  * @throws {RemoteError} `plugin-manager/unknown-bundle`, `plugin-manager/invalid-language`, or
  *   `plugin-manager/detail-unavailable`.
  */
-@Remote async readBundleDetail(name: string, language: string, options?: { npmFileSources?: NpmFileSource[] }): Promise<BundleDetail>
+@Remote async readBundleDetail(name: string, language: string): Promise<BundleDetail>
 
 /** Read exact plugin-version exemptions saved in this profile.
  * @returns Accepted package-name@version keys with the runtime versions they may run on, and any
@@ -392,23 +390,20 @@ Fetches, validates, and caches configured market indexes; annotates entries with
 async entry(url: string, name: string): Promise<MarketListingEntry | undefined>
 
 /**
- * Read the long description of one listed version of a plugin market entry, from the version's source: the npm file
- * CDNs for a public npm version, or its pinned Git commit. The Markdown file the package's locale `meta.detail` names
- * in `language` comes first, then the package's README, then the README of the entry's `repository`, or for an npm
- * version without one, of its `package.json` `repository`, at the default branch. An npm version from another
- * registry has no readable package files, so only the entry's `repository` is read.
+ * Read the long description of one listed version of a plugin market entry. A Git version is read from its pinned
+ * commit: the Markdown file the package's locale `meta.detail` names in `language` comes first, then the package's
+ * README, then the README of the entry's `repository` at the default branch. An npm version has no readable package
+ * files, so only the entry's `repository` is read.
  * @param url - a configured index URL.
  * @param name - the plugin's package name.
  * @param version - one listed version.
  * @param language - the display language, such as `zh-CN`; documents fall back through its prefixes to English.
- * @param options - `refresh` reads again instead of reusing a result cached for `cacheTtlMs`; `npmFileSources` names
- *   npm file CDNs to ask first for an npm version, in order; configured CDNs it omits follow, and CDNs that are not
- *   configured are not asked.
+ * @param options - `refresh` reads again instead of reusing a result cached for `cacheTtlMs`.
  * @returns the document with its origin and image document id, or `none`.
  * @throws {RemoteError} the failures of `search`, `plugin-market/unknown-plugin` for an unlisted plugin or version,
  *   `plugin-market/invalid-query`, or `plugin-market/detail-unavailable`.
  */
-@Remote async readEntryDetail( url: string, name: string, version: string, language: string, options?: { refresh?: boolean; npmFileSources?: NpmFileSource[] }, ): Promise<PluginDetail>
+@Remote async readEntryDetail( url: string, name: string, version: string, language: string, options?: { refresh?: boolean }, ): Promise<PluginDetail>
 ```
 
 Source: [`packages/boot/plugin-market/src/index.ts`](../../packages/boot/plugin-market/src/index.ts)
@@ -432,24 +427,6 @@ Catalog lookups for card text and the enabling behind the `enable_official_plugi
 Types: [Agent](core.md) · [ToolCallId](core.md)
 
 Source: [`packages/experimental/plugin-recommendations/src/index.ts`](../../packages/experimental/plugin-recommendations/src/index.ts)
-
-<a id="ctxpluginregistryprobe--pluginregistryprobe"></a>
-
-### `ctx.pluginRegistryProbe` — `PluginRegistryProbe`
-
-Compares public registry responses on the Host; the Client owns the initial selection.
-
-```ts cordis-catalog
-/**
- * Race npm and npmmirror HTTPS ping responses through the Host's fetch proxy.
- * Concurrent readers share a probe; a winner cancels and awaits the other request.
- * @returns the first registry with a successful response, or null when disabled or neither responds successfully; results are cached.
- * @throws rejects when the service has been unloaded.
- */
-@Remote async fastest(): Promise<string | null>
-```
-
-Source: [`packages/client/ui-plugin-manager/src/index.ts`](../../packages/client/ui-plugin-manager/src/index.ts)
 
 <a id="ctxprofilecontext--profilecontext"></a>
 

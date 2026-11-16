@@ -39,7 +39,7 @@ describe('desktop build version', () => {
     expect(validateDesktopBuildVersion('v0.1.6-alpha.2.1', PRERELEASE)).toBe('0.1.6-alpha.2.1')
   })
 
-  it('rejects build metadata, which does not affect updater precedence', () => {
+  it('rejects build metadata, which does not affect version precedence', () => {
     expect(() => validateDesktopBuildVersion('0.1.6-alpha.2.1+build', PRERELEASE)).toThrow(/build metadata/u)
   })
 

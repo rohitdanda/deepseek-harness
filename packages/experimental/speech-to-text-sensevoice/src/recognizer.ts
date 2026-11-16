@@ -3,12 +3,11 @@ import { randomBytes } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SubprocessHandle } from '@deepseek-ai/dsh-subprocess'
-import type { SpeechPreparationOptions, SpeechInput, SpeechPreparationState, SpeechPreparationStep, SpeechPreparationStepKind, Transcript } from '@deepseek-ai/dsh-experimental-speech-to-text/types'
+import type { SpeechInput, SpeechPreparationState, SpeechPreparationStep, SpeechPreparationStepKind, Transcript } from '@deepseek-ai/dsh-experimental-speech-to-text/types'
 import { deadline } from '@deepseek-ai/dsh-timeout'
 import { z } from 'zod'
 import type { Config } from './config.ts'
 import { SpeechInputError } from './input.ts'
-import { SpeechDownloadError } from './download-error.ts'
 import { inspectRuntime, prepareRuntime, type RuntimePaths } from './runtime.ts'
 
 const transcriptSchema = z.object({
@@ -108,18 +107,10 @@ export class SenseVoiceWorker {
   private runtime: RuntimePaths | undefined
   private state: SpeechPreparationState & { readonly steps: readonly SpeechPreparationStep[] }
   private readonly listeners = new Set<() => void>()
-  private lastProgressAt = 0
-  /** Configured origins available for explicit downloads; offline deployments expose no choices. */
-  readonly downloadSources: readonly string[]
-  private preparing: { abort: AbortController; settled: Promise<void>; completed: boolean; downloadSource: string | undefined } | undefined
+  private preparing: { abort: AbortController; settled: Promise<void>; completed: boolean } | undefined
 
   constructor(private readonly ctx: Context, private readonly config: Config) {
-    this.downloadSources = config.modelDirectory !== undefined && config.vadModelPath !== undefined ? []
-      : [...new Set((config.modelOrigin === undefined ? config.modelOrigins : [config.modelOrigin]).map(origin => new URL(origin).origin))]
-    const kinds: SpeechPreparationStepKind[] = ['check']
-    if (config.modelDirectory === undefined) kinds.push('model')
-    if (config.vadModelPath === undefined) kinds.push('vad')
-    kinds.push('verify', 'load')
+    const kinds: SpeechPreparationStepKind[] = ['check', 'load']
     this.state = { phase: 'unprepared', steps: kinds.map(kind => ({ kind, status: 'pending' })) }
   }
 
@@ -155,10 +146,6 @@ export class SenseVoiceWorker {
       return state.step === undefined ? item : { ...item, status: 'complete' }
     })
     this.state = { ...state, steps }
-    const now = performance.now()
-    if (state.phase === 'downloading' && previous.phase === 'downloading' && state.resource === previous.resource
-      && state.completedBytes !== state.totalBytes && now - this.lastProgressAt < this.config.progressIntervalMs) return
-    this.lastProgressAt = now
     for (const listener of this.listeners) listener()
   }
 
@@ -171,35 +158,27 @@ export class SenseVoiceWorker {
       inspection.signal.throwIfAborted()
       this.runtime = runtime
       this.publish({ phase: runtime ? 'standby' : 'unprepared', steps: this.state.steps.map(({ kind }) => ({ kind,
-        status: kind === 'check' || runtime && kind !== 'load' ? 'complete' : 'pending',
+        status: kind === 'check' ? 'complete' : 'pending',
       })) })
     })
   }
 
-  /**
-   * Start or join one Host-owned preparation task with a fixed download source.
-   * @param options - omitted source uses deployment policy; a manual source must be advertised and disables fallback.
-   */
-  prepare(options: SpeechPreparationOptions = {}): void {
-    const source = options.downloadSource
-    if (source !== undefined && !this.downloadSources.includes(source)) throw new Error('Speech download source is unavailable')
-    const config = source === undefined ? this.config : Object.assign({}, this.config, { modelOrigin: source })
-    this.runPreparation(async (signal) => { await this.start(signal, config) }, source)
+  /** Start or join one Host-owned preparation task that checks the configured model files and loads the worker. */
+  prepare(): void {
+    this.runPreparation(async (signal) => { await this.start(signal) })
   }
 
-  private runPreparation(run: (signal: AbortSignal) => Promise<void>, downloadSource?: string): void {
-    if (this.preparing && this.preparing.downloadSource !== downloadSource) throw new Error('Cancel preparation before changing its download source')
+  private runPreparation(run: (signal: AbortSignal) => Promise<void>): void {
     if (this.preparing || this.worker) return
     this.lifetime.signal.throwIfAborted()
     const abort = new AbortController()
-    const task = { abort, settled: Promise.resolve(), completed: false, downloadSource }
+    const task = { abort, settled: Promise.resolve(), completed: false }
     this.preparing = task
     task.settled = this.enqueue(run, abort.signal)
       .catch((error: unknown) => {
         if (this.lifetime.signal.aborted) return
         this.publish(abort.signal.aborted ? { phase: 'cancelled' }
-          : { phase: 'failed', message: error instanceof Error ? error.message : String(error),
-            ...error instanceof SpeechDownloadError ? { download: error.download } : {} })
+          : { phase: 'failed', message: error instanceof Error ? error.message : String(error) })
       }).finally(() => { this.preparing = undefined })
   }
 
@@ -216,7 +195,7 @@ export class SenseVoiceWorker {
 
   /**
    * Queue one bounded recording; cancellation never leaves inference running after settlement.
-   * Verified resources accept recordings while the worker wakes; other preparation states reject without downloading.
+   * Present model files accept recordings while the worker wakes; other preparation states reject.
    * @param input - complete WAV and language hint.
    * @param signal - caller cancellation.
    * @returns recognized text; cancelled waiting jobs never acquire the worker.
@@ -247,13 +226,13 @@ export class SenseVoiceWorker {
     return await job
   }
 
-  private async start(signal: AbortSignal, preparationConfig: Config = this.config): Promise<Worker> {
+  private async start(signal: AbortSignal): Promise<Worker> {
     if (this.worker?.closed) await this.stop()
     if (this.worker) return this.worker
     using setup = deadline(signal, this.config.prepareTimeoutMs, 'SPEECH_PREPARE_TIMEOUT')
     const cached = this.runtime !== undefined
     if (!cached) this.publish({ phase: 'checking', step: 'check', startedAt: Date.now() })
-    const runtime = this.runtime ?? await prepareRuntime(this.ctx, preparationConfig, setup.signal, (state) => { this.publish(state) })
+    const runtime = this.runtime ?? await prepareRuntime(this.ctx, this.config, setup.signal)
     this.runtime = runtime
     setup.signal.throwIfAborted()
     this.publish({ phase: cached ? 'waking' : 'loading', step: 'load', startedAt: Date.now() })

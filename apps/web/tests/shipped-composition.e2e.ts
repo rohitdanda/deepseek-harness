@@ -643,22 +643,6 @@ it('assembles the shipped Web transport, catalog, guidance, and defaults', async
     loadOverlayPatches('shipped headless composition', HEADLESS_PATCH_PATH),
   ])
   expect(headlessRows.some(row => row.id === 'auto-review')).toBe(false)
-
-  const commandHandle = await scaffold.ctx.agents.create({
-    sessionId: brandString<SessionId>('shipped-command-catalog'),
-    meta: { cwd: scaffold.workspaceCwd },
-    agentOptions: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
-  })
-  try {
-    expect(scaffold.ctx.commands.list(commandHandle.agent)).toContainEqual({
-      definitionId: '@deepseek-ai/dsh-command-feedback',
-      name: 'feedback',
-      description: 'Record feedback about this session',
-      input: { hint: '<text>' },
-    })
-  } finally {
-    await commandHandle.dispose()
-  }
 }, 120_000)
 
 it('ships PTC with run_code but without the general workflow SDK binding', async () => {

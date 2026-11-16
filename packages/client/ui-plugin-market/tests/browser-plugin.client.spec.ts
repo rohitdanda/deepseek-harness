@@ -20,7 +20,7 @@ it('contributes Discover to the Plugins page, follows Host changes, and withdraw
     read: vi.fn(),
     setIndexes: vi.fn(),
   }
-  const remote = new TestRemote(ctx, { pluginMarket: market, pluginRegistryProbe: { fastest: vi.fn() } })
+  const remote = new TestRemote(ctx, { pluginMarket: market })
   const slots = ctx.get('slots') as SlotRegistry
   slots.register({ name: 'root', children: { 'plugins.tab': { kind: 'list', scope: 'root' } } } as never, () => null)
   const fiber = await ctx.plugin({ inject: [...inject], apply }).await()

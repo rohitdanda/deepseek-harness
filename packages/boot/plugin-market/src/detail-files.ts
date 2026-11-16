@@ -1,9 +1,9 @@
 /**
- * Git repository files for plugin detail documents, through GitHub or GitLab single-file APIs with a cached partial
- * clone as the fallback for repositories those APIs cannot serve anonymously.
+ * Git repository files for plugin detail documents, through a GitLab single-file API where a host serves one, and
+ * otherwise from a cached partial clone, which also serves repositories the API cannot read anonymously.
  */
 import {
-  DetailFailure, encodePath, fetchBody, README_NAMES, readmeByName, type DetailFiles, type ReadFile, type RemoteFileOptions,
+  DetailFailure, fetchBody, README_NAMES, readmeByName, type DetailFiles, type ReadFile, type RemoteFileOptions,
 } from '@deepseek-ai/dsh-plugin-detail'
 import type { RepositoryCache } from './repository-cache.ts'
 
@@ -17,22 +17,17 @@ export interface RepositoryRef {
   readonly url: string
 }
 
-/** Which single-file API a host offers anonymously. */
-type FileApi = 'github' | 'gitlab' | undefined
-
 /** Single-file API settings and the clone fallback of repository sources. */
 export interface RepositoryFileOptions extends RemoteFileOptions {
-  /** Lower-case hosts serving the GitLab repository files API; `github.com` always uses GitHub's raw file host. */
+  /** Lower-case hosts serving the GitLab repository files API. */
   readonly gitlabHosts: readonly string[]
   /** The clone cache's reads. */
   readonly cache: Pick<RepositoryCache, 'isPublic' | 'read' | 'readme'>
 }
 
-function apiUrl(api: Exclude<FileApi, undefined>, repository: RepositoryRef, ref: string, path: string): string {
-  return api === 'github'
-    ? `https://raw.githubusercontent.com/${repository.project}/${encodeURIComponent(ref)}/${encodePath(path)}`
-    // The repository URL's origin keeps a self-hosted GitLab's scheme and port.
-    : `${new URL(repository.url).origin}/api/v4/projects/${encodeURIComponent(repository.project)}/repository/files/${encodeURIComponent(path)}/raw?ref=${encodeURIComponent(ref)}`
+function gitlabUrl(repository: RepositoryRef, ref: string, path: string): string {
+  // The repository URL's origin keeps a self-hosted GitLab's scheme and port.
+  return `${new URL(repository.url).origin}/api/v4/projects/${encodeURIComponent(repository.project)}/repository/files/${encodeURIComponent(path)}/raw?ref=${encodeURIComponent(ref)}`
 }
 
 /**
@@ -45,11 +40,11 @@ function apiUrl(api: Exclude<FileApi, undefined>, repository: RepositoryRef, ref
  * @returns the files.
  */
 export function repositoryFiles(repository: RepositoryRef, commit: string | undefined, options: RepositoryFileOptions): DetailFiles {
-  const api: FileApi = repository.host === 'github.com' ? 'github' : options.gitlabHosts.includes(repository.host) ? 'gitlab' : undefined
+  const viaApi = options.gitlabHosts.includes(repository.host)
   const ref = commit ?? 'HEAD'
   /** An API read: the bytes, or undefined for an answer that does not distinguish a missing file from a private repository. */
-  const fromApi = async (path: string, maxBytes: number, signal: AbortSignal, via: Exclude<FileApi, undefined>) => {
-    const body = await fetchBody(apiUrl(via, repository, ref, path), maxBytes, signal, options)
+  const fromApi = async (path: string, maxBytes: number, signal: AbortSignal) => {
+    const body = await fetchBody(gitlabUrl(repository, ref, path), maxBytes, signal, options)
     if (body.ok) return body.bytes
     if (body.status !== 404 && body.status !== 401 && body.status !== 403) {
       throw new DetailFailure('network', `${repository.url}: ${path} answered HTTP ${String(body.status)}`)
@@ -59,15 +54,15 @@ export function repositoryFiles(repository: RepositoryRef, commit: string | unde
   return {
     key: `git:${repository.url}#${ref}`,
     async read(path, maxBytes, signal) {
-      if (api !== undefined) {
-        const bytes = await fromApi(path, maxBytes, signal, api)
+      if (viaApi) {
+        const bytes = await fromApi(path, maxBytes, signal)
         if (bytes !== undefined || await options.cache.isPublic(repository.url)) return bytes
       }
       return await options.cache.read(repository.url, commit, path, maxBytes, signal)
     },
     async readme(dir, maxBytes, signal) {
-      if (api !== undefined) {
-        const read: ReadFile = (path, max, readSignal) => fromApi(path, max, readSignal, api)
+      if (viaApi) {
+        const read: ReadFile = (path, max, readSignal) => fromApi(path, max, readSignal)
         // The first name settles most lookups; the others are worth asking only where a miss is authoritative.
         const found = await readmeByName(read, dir, maxBytes, signal, README_NAMES.slice(0, 1))
         if (found !== undefined) return found

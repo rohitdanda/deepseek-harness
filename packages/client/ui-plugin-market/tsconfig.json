@@ -17,7 +17,7 @@
     { "path": "../../util/plugin-market-index" },
     { "path": "../locale/tsconfig.client.json" },
     { "path": "../store" },
-    { "path": "../ui-plugin-manager/tsconfig.client.json" },
+    { "path": "../ui-plugin-manager" },
     { "path": "../ui-primitives" },
     { "path": "../ui-renderer" },
     { "path": "../ui-slots" }

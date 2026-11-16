@@ -14,7 +14,7 @@ Separate Desktop composition and request transport require their own configurati
 
 The private Desktop Host invokes the CLI's shared profile runner against the independently owned Desktop profile. The complete Web composition owns authentication, HTTP routes, client assets, RPC, and response streaming. Electron loads packaged static Web assets before the child is ready. Child IPC carries readiness, structured boot injections, and shutdown. The [immediate-window reference](../../../../apps/desktop/README.md) owns local-document HTTP forwarding and authenticated WebSocket access; Web retains application dispatch and stream framing.
 
-The shared runner owns profile and Harness-home patches, proxy setup, telemetry defaults, the runtime resolution, configuration reload, and application lifecycle. Desktop initializes profiles from the shared Web template and uses its Plugin Manager in the main application. Electron owns windows, menus, native directory selection, recovery, and release updates.
+The shared runner owns profile and Harness-home patches, proxy setup, the runtime resolution, configuration reload, and application lifecycle. Desktop initializes profiles from the shared Web template and uses its Plugin Manager in the main application. Electron owns windows, menus, native directory selection, and recovery.
 
 The [bundled-runtime decision](2026-09-08-desktop-bundled-runtime-and-external-plugins.md) retains separate runtime and plugin storage, bundled pnpm and explicit package ownership. The public CLI continues to reject the reserved Desktop profile. Electron profile preparation and native recovery remain available without a working Host.
 

@@ -5,7 +5,7 @@ import { ReasoningTranslation, reasoningFragments, type TranslateText, type Tran
 function fixture(maxTextChars = 4000) {
   const states: TranslationState[] = []
   const translate = vi.fn<TranslateText>(async ({ text }) => `译:${text}`)
-  const controller = new ReasoningTranslation({ provider: 'google', targetLanguage: 'zh' }, maxTextChars, translate,
+  const controller = new ReasoningTranslation({ provider: 'deepseek-official', targetLanguage: 'zh' }, maxTextChars, translate,
     (state) => { states.push(state) })
   return { controller, translate, states }
 }
@@ -47,7 +47,7 @@ describe('reasoning translation', () => {
       expect(b.translate.mock.calls.map(([request]) => request.text)).toEqual(['abcd', 'efgh'])
       b.controller.update('abcdefghij', false)
       await vi.waitFor(() => { expect(b.translate).toHaveBeenCalledTimes(3) })
-      expect(b.translate.mock.calls[2]?.[0]).toMatchObject({ provider: 'google', targetLanguage: 'zh', text: 'ij' })
+      expect(b.translate.mock.calls[2]?.[0]).toMatchObject({ provider: 'deepseek-official', targetLanguage: 'zh', text: 'ij' })
     } finally { b.controller.dispose() }
   })
 

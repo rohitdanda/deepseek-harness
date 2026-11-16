@@ -16,7 +16,7 @@ function fixture(preferences: Partial<CotTranslationPreferences> = {}) {
   const ctx = new Context(); roots.push(ctx)
   const resolve = vi.fn((request: TranslationRequest) => ({ sourceLanguage: 'auto', ...request }))
   const translate = vi.fn(async () => 'translated')
-  const availableProviders = vi.fn(async (): Promise<readonly TranslationProvider[]> => ['bing', 'google'])
+  const availableProviders = vi.fn(async (): Promise<readonly TranslationProvider[]> => [])
   ctx.provide('translator', { maxTextChars: 32, resolve, translate, availableProviders } as never)
   const configure = vi.fn(() => () => {})
   ctx.provide('settings', { configure } as never)
@@ -28,11 +28,11 @@ function fixture(preferences: Partial<CotTranslationPreferences> = {}) {
 }
 
 it('exposes configured limits without translating and uses explicit provider and target', async () => {
-  const b = fixture({ provider: 'google' }), request = {
-    text: 'original', targetLanguage: 'zh', provider: 'google' as const, sessionId: brandString<SessionId>('source'),
+  const b = fixture({ provider: 'deepseek-official' }), request = {
+    text: 'original', targetLanguage: 'zh', provider: 'deepseek-official' as const, sessionId: brandString<SessionId>('source'),
   }
   expect(await b.controller.limits(new AbortController().signal)).toEqual({ maxTextChars: 32,
-    preferences: { provider: 'google', targetLanguage: 'auto' }, availableProviders: ['bing', 'google'] })
+    preferences: { provider: 'deepseek-official', targetLanguage: 'auto' }, availableProviders: [] })
   expect(b.translate).not.toHaveBeenCalled()
   const signal = new AbortController().signal
   expect(await b.controller.translate(request, signal)).toBe('translated')
@@ -62,8 +62,7 @@ it('joins ordinary Session activation only for an uncached inactive Session and 
 it.each([
   { error: new TranslationError('TRANSLATION_STORAGE_ERROR', 'unavailable'), request: scoped },
   { error: Object.assign(new Error('untyped failure'), { code: 'TRANSLATION_SESSION_INACTIVE' }), request: scoped },
-  { error: inactive(), request: { text: 'original', targetLanguage: 'zh' } },
-])('does not activate for an unrelated failure or a stateless request: $error', async ({ error, request }) => {
+])('does not activate for an unrelated failure: $error', async ({ error, request }) => {
   const b = fixture()
   b.translate.mockRejectedValue(error)
   await expect(b.controller.translate(request, new AbortController().signal)).rejects.toMatchObject({ code: 'cotTranslation/failed' })
@@ -82,13 +81,13 @@ it.each(['return', 'throw'] as const)('redacts an activation failure without ret
   expect(b.translate).toHaveBeenCalledOnce()
 })
 
-it.each(['provider', 'targetLanguage'] as const)('rechecks accepted %s after activation before sending text', async (preference) => {
+it('rechecks the accepted target language after activation before sending text', async () => {
   const b = fixture(), activation = Promise.withResolvers<Awaited<ReturnType<typeof b.resolveAgent>>>()
   b.translate.mockRejectedValueOnce(inactive())
   b.resolveAgent.mockReturnValueOnce(activation.promise)
   const task = b.controller.translate(scoped, new AbortController().signal)
   await vi.waitFor(() => { expect(b.resolveAgent).toHaveBeenCalledOnce() })
-  Object.assign(b.config, CotTranslationController.Config(preference === 'provider' ? { provider: 'google' } : { targetLanguage: 'ja' }))
+  Object.assign(b.config, CotTranslationController.Config({ targetLanguage: 'ja' }))
   activation.resolve({ agent: {} as never })
   await expect(task).rejects.toMatchObject({ code: 'cotTranslation/failed' })
   expect(b.translate).toHaveBeenCalledOnce()
@@ -129,21 +128,6 @@ it('does not dispatch after activation resolves at the same time as cancellation
   expect(b.translate).toHaveBeenCalledOnce()
 })
 
-it.each([
-  { accepted: 'bing' as const, requested: 'google' as const },
-  { accepted: 'google' as const, requested: 'bing' as const },
-  { accepted: 'bing' as const, requested: 'deepseek-account' as const },
-  { accepted: 'bing' as const, requested: 'deepseek-official' as const },
-  { accepted: 'deepseek-account' as const, requested: 'deepseek-official' as const },
-  { accepted: 'deepseek-official' as const, requested: 'bing' as const },
-])('rejects $requested when the accepted provider is $accepted before lookup or dispatch', async ({ accepted, requested }) => {
-  const b = fixture({ provider: accepted })
-  await expect(b.controller.translate({ text: 'private original', targetLanguage: 'ja', provider: requested }, new AbortController().signal))
-    .rejects.toMatchObject({ code: 'cotTranslation/failed', message: 'Translation failed', details: {} })
-  expect(b.resolve).not.toHaveBeenCalled()
-  expect(b.translate).not.toHaveBeenCalled()
-})
-
 it('redacts provider error text and preserves cancellation before and during translation', async () => {
   const b = fixture(), request = { text: 'private original', targetLanguage: 'ja' }
   b.translate.mockRejectedValueOnce(new Error('private provider response'))
@@ -167,26 +151,26 @@ it('rejects a different explicit target before saved-result lookup or provider d
   expect(b.translate).not.toHaveBeenCalled()
 })
 
-it('validates preference codes while providing volatile Bing and automatic language defaults', () => {
+it('validates preference codes while providing volatile official DeepSeek API route and automatic language defaults', () => {
   const defaults = CotTranslationController.Config({})
-  expect(defaults.provider.get()).toBe('bing')
+  expect(defaults.provider.get()).toBe('deepseek-official')
   expect(defaults.targetLanguage.get()).toBe('auto')
   expect(() => CotTranslationController.Config({ targetLanguage: 'invalid language' })).toThrow()
 })
 
 it('reports accepted Host preferences and uses them when a request omits its provider', async () => {
-  const b = fixture({ provider: 'google', targetLanguage: 'ja' }), signal = new AbortController().signal
+  const b = fixture({ provider: 'deepseek-official', targetLanguage: 'ja' }), signal = new AbortController().signal
   expect(await b.controller.limits(signal)).toEqual({ maxTextChars: 32,
-    preferences: { provider: 'google', targetLanguage: 'ja' }, availableProviders: ['bing', 'google'] })
+    preferences: { provider: 'deepseek-official', targetLanguage: 'ja' }, availableProviders: [] })
   expect(await b.controller.translate({ text: 'original', targetLanguage: 'ja' }, signal)).toBe('translated')
-  expect(b.resolve).toHaveBeenCalledWith({ text: 'original', provider: 'google', targetLanguage: 'ja' })
+  expect(b.resolve).toHaveBeenCalledWith({ text: 'original', provider: 'deepseek-official', targetLanguage: 'ja' })
   await expect(b.controller.limits(AbortSignal.abort(new Error('cancelled query')))).rejects.toThrow('cancelled query')
 })
 
-it.each(['deepseek-account', 'deepseek-official'] as const)('keeps accepted %s cache lookup available when new requests are ineligible', async (provider) => {
+it.each(['deepseek-official'] as const)('keeps accepted %s cache lookup available when new requests are ineligible', async (provider) => {
   const b = fixture({ provider }), signal = new AbortController().signal
   expect(await b.controller.limits(signal)).toEqual({ maxTextChars: 32,
-    preferences: { provider, targetLanguage: 'auto' }, availableProviders: ['bing', 'google'] })
+    preferences: { provider, targetLanguage: 'auto' }, availableProviders: [] })
   const request = { text: 'original', provider, targetLanguage: 'zh', sessionId: brandString<SessionId>('existing-source') }
   expect(await b.controller.translate(request, signal)).toBe('translated')
   expect(b.resolve).toHaveBeenCalledWith(request)
@@ -199,6 +183,6 @@ it('preserves cancellation after a held native route catalog settles', async () 
   b.availableProviders.mockImplementationOnce(() => pending.promise)
   const task = b.controller.limits(caller.signal), reason = new Error('catalog cancelled')
   caller.abort(reason)
-  pending.resolve(['bing', 'google'])
+  pending.resolve([])
   await expect(task).rejects.toBe(reason)
 })

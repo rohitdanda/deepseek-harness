@@ -1,7 +1,7 @@
 /** Market entry detail documents: package document, repository README, caching, and images beside a read document. */
 import { afterEach, expect, it, vi } from 'vitest'
 import { DetailFailure, readmeName, type DetailFiles } from '@deepseek-ai/dsh-plugin-detail'
-import { DetailReader, manifestRepository, repositoryOf, type DetailLocation } from '../src/detail.ts'
+import { DetailReader, repositoryOf, type DetailLocation } from '../src/detail.ts'
 import type { RepositoryFileOptions } from '../src/detail-files.ts'
 
 /** Await a rejection that matches `fields` and whose message contains `message`. */
@@ -43,7 +43,7 @@ function reader(repositoryContents: Record<string, string> = {}, limits: { ttlMs
   const raw = vi.fn((url: string) => Promise.resolve(new Response(repositoryContents[url] ?? 'missing', { status: url in repositoryContents ? 200 : 404 })))
   vi.stubGlobal('fetch', raw)
   const repositories: RepositoryFileOptions = {
-    timeoutMs: 1000, lifetime, gitlabHosts: [],
+    timeoutMs: 1000, lifetime, gitlabHosts: ['gitlab.example'],
     cache: { isPublic: () => Promise.resolve(true), read: () => Promise.resolve(undefined), readme: () => Promise.resolve(undefined) },
   }
   return new DetailReader({ maxDocumentBytes: 100, maxImageBytes: 10, ttlMs: limits.ttlMs ?? 60_000 }, repositories)
@@ -51,18 +51,11 @@ function reader(repositoryContents: Record<string, string> = {}, limits: { ttlMs
 
 const EN_ZH = ['zh', 'en']
 
-it('parses repositories from manifests, shorthands, and web pages', () => {
-  expect(manifestRepository('github:o/r')).toEqual({ host: 'github.com', project: 'o/r', url: 'https://github.com/o/r.git', directory: '' })
-  expect(manifestRepository({ type: 'git', url: 'git+https://gitlab.com/g/s/p.git#main', directory: './packages/a/' }))
-    .toEqual({ host: 'gitlab.com', project: 'g/s/p', url: 'https://gitlab.com/g/s/p.git', directory: 'packages/a' })
-  expect(manifestRepository({ url: 'git+https://git.example:8443/team/repo.git', directory: '../x' }))
-    .toEqual({ host: 'git.example', project: 'team/repo', url: 'https://git.example:8443/team/repo.git', directory: '' })
-  expect(manifestRepository({ url: 'github:o/r', directory: '/abs' })).toMatchObject({ directory: '' })
-  expect(manifestRepository({ url: 'https://git.example/team/repo', directory: '.' })).toMatchObject({ directory: '' })
-  expect(manifestRepository({ url: 'https://git.example/team/repo', directory: 7 })).toMatchObject({ directory: '' })
-  for (const value of [undefined, null, 7, { url: 7 }, 'not a repository', 'ftp://git.example/a/b', 'https://git.example/one', 'gist:abc']) {
-    expect(manifestRepository(value)).toBeUndefined()
-  }
+/** The GitLab single-file API URL of one path at the default branch of `GITLAB`. */
+const api = (path: string): string => `https://gitlab.example/api/v4/projects/o%2Fr/repository/files/${encodeURIComponent(path)}/raw?ref=HEAD`
+const GITLAB = { host: 'gitlab.example', project: 'o/r', url: 'https://gitlab.example/o/r.git', directory: '' }
+
+it('parses repositories from shorthands and web pages', () => {
   expect(repositoryOf('https://github.com/o/r/tree/main/pkg')).toEqual({ host: 'github.com', project: 'o/r', url: 'https://github.com/o/r.git' })
   expect(repositoryOf('https://git.corp.example/g/p/-/tree/main')).toEqual({ host: 'git.corp.example', project: 'g/p', url: 'https://git.corp.example/g/p.git' })
   expect(repositoryOf('https://user:pw@git.example/a/b')).toBeUndefined()
@@ -76,33 +69,28 @@ it('reads the package document first, and reports an invalid one', async () => {
     'README.md': '# Readme',
   })
   const details = reader()
-  expect(await details.read({ files, dir: '', repository: 'manifest' }, EN_ZH)).toMatchObject({ status: 'found', origin: 'locale', markdown: '# Detail' })
+  expect(await details.read({ files, dir: '', repository: undefined }, EN_ZH)).toMatchObject({ status: 'found', origin: 'locale', markdown: '# Detail' })
   expect(await details.read({ files: memory('npm:r@1', { 'README.md': '# Readme' }), dir: '', repository: undefined }, ['en']))
     .toMatchObject({ origin: 'readme', markdown: '# Readme' })
   const missing = memory('npm:b@1', { 'locale/en.json': JSON.stringify({ meta: { detail: 'GONE.md' } }) })
   await expectRejection(details.read({ files: missing, dir: '', repository: undefined }, ['en']), { reason: 'invalid' }, 'GONE.md')
 })
 
-it('reads the repository README last, from package.json or the given repository, at the default branch', async () => {
+it('reads the repository README last, at the default branch', async () => {
   const details = reader({
-    'https://raw.githubusercontent.com/o/r/HEAD/packages/a/README.md': '# Repo A',
-    'https://raw.githubusercontent.com/o/r/HEAD/README.md': '# Repo',
+    [api('packages/a/README.md')]: '# Repo A',
+    [api('README.md')]: '# Repo',
   })
-  const files = memory('npm:a@1', { 'package.json': JSON.stringify({ repository: { url: 'github:o/r', directory: 'packages/a' } }) })
-  expect(await details.read({ files, dir: '', repository: 'manifest' }, ['en'])).toMatchObject({ origin: 'repository', markdown: '# Repo A' })
-  expect(await details.read({ files: memory('npm:b@1', {}), dir: '', repository: 'manifest' }, ['en'])).toEqual({ status: 'none' })
-  expect(await details.read({ files: memory('npm:c@1', { 'package.json': '{' }), dir: '', repository: 'manifest' }, ['en'])).toEqual({ status: 'none' })
-  const repository = { host: 'github.com', project: 'o/r', url: 'https://github.com/o/r.git', directory: '' }
-  expect(await details.read({ dir: '', repository }, ['en'])).toMatchObject({ origin: 'repository', markdown: '# Repo' })
-  expect(await details.read({ dir: '', repository: { ...repository, directory: 'missing' } }, ['en'])).toEqual({ status: 'none' })
+  expect(await details.read({ dir: '', repository: { ...GITLAB, directory: 'packages/a' } }, ['en'])).toMatchObject({ origin: 'repository', markdown: '# Repo A' })
+  expect(await details.read({ dir: '', repository: GITLAB }, ['en'])).toMatchObject({ origin: 'repository', markdown: '# Repo' })
+  expect(await details.read({ dir: '', repository: { ...GITLAB, directory: 'missing' } }, ['en'])).toEqual({ status: 'none' })
   expect(await details.read({ dir: '', repository: undefined }, ['en'])).toEqual({ status: 'none' })
 })
 
 it('reports a failure of the declared repository', async () => {
   const details = reader()
   vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
-  const github = { host: 'github.com', project: 'o/r', url: 'https://github.com/o/r.git', directory: '' }
-  await expectRejection(details.read({ dir: '', repository: github }, ['en']), { reason: 'network' }, 'offline')
+  await expectRejection(details.read({ dir: '', repository: GITLAB }, ['en']), { reason: 'network' }, 'offline')
 })
 
 it('shares concurrent reads, reuses results and lasting failures until they expire, and asks again after a network failure', async () => {

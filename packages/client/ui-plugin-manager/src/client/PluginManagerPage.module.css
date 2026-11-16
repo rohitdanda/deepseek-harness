@@ -974,7 +974,7 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* The registry options float from their toggle over the dialog: pnpm's own, the configured mirrors, and a typed
+/* The registry options float from their toggle over the dialog: pnpm's own, the configured fallbacks, and a typed
    address, with the order asked under them. Portaled and fixed, so the dialog keeps its height. */
 .registry {
   position: fixed;

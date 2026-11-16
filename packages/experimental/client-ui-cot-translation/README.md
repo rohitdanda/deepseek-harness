@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Read expanded model reasoning in another language and switch back to its original text. Choose a translation service and target language from the Plugins panel. Translation sends displayed reasoning to the selected external service, which may include private code or conversation details. Original reasoning remains in the Session and model context.
+Read expanded model reasoning in another language and switch back to its original text. Choose a translation service and target language from the Plugins panel. Translation sends displayed reasoning to the selected DeepSeek model route, which may include private code or conversation details. Original reasoning remains in the Session and model context.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ Read expanded model reasoning in another language and switch back to its origina
 <a id="use-this-package"></a>
 ## Use this package
 
-Enable the [reasoning translation bundle](../cot-translation-bundle/README.md) in Plugins, then open a reasoning disclosure. The feature is absent until the bundle is enabled. Its bundle details provide staged Translation service and Target language controls; Save applies both preferences. Bing is the default provider, and `auto` targets the active UI language. An explicit language code such as `zh`, `en`, or `ja` overrides that choice.
+Enable the [reasoning translation bundle](../cot-translation-bundle/README.md) in Plugins, then open a reasoning disclosure. The feature is absent until the bundle is enabled. Its bundle details provide staged Translation service and Target language controls; Save applies both preferences. The official DeepSeek API route is the default provider, and `auto` targets the active UI language. An explicit language code such as `zh`, `en`, or `ja` overrides that choice.
 
 View original and View translation share one always-visible action in the plugin's toolbar above the translated body. The plugin owns this action and its state; the Think title only controls the disclosure. Both views reuse the same compact Markdown renderer and typography, without changing the reasoning preview or making another request. Completed paragraphs and request-sized prefixes of long streaming paragraphs translate asynchronously; the unfinished tail stays original. A failure retains the original body and provides Retry; View translation remains disabled until the retry starts. Closing the disclosure or disabling the bundle cancels its requests.
 
@@ -52,7 +52,7 @@ A saved result needs no activation. On an uncached inactive Session, the Host jo
 <a id="further-exploration"></a>
 ## Further Exploration
 
-- [Translator service](../translator/README.md) — providers and network limits.
+- [Translator service](../translator/README.md) — routes and limits.
 - [Chat rendering](../../client/ui-chat/README.md) — reasoning disclosure and display extensions.
 - [Web Client Slots](../../../docs/subsystems/slots.md) — contribution lifetimes.
 
@@ -71,11 +71,10 @@ Translation records do not replace model input. Normal activation may append con
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- Google and Bing anonymous endpoints may reject requests or become unavailable; requests never fall back to another provider.
+- Native routes are unavailable until an official DeepSeek API key is configured; requests never fall back to another provider.
 - Translation may change Markdown formatting or code examples. Original text remains available.
 - An inactive subagent Session without a saved translation retains the original text and reports a translation failure; ordinary Session activation cannot restore subagent ownership.
 - Collapsed previews remain original. Saved results belong to the Session; future format migrations retain experimental records on a best-effort basis.
-- Provider reachability from mainland China requires network-specific verification.
 
 -----
 

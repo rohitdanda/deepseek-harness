@@ -17,8 +17,6 @@ import { inject } from '../src/client/index.ts'
 import type { DeveloperToolsRowInjected } from '../src/client/DeveloperToolsRow.tsx'
 import { HostReleasePrompt, type HostReleasePromptInjected } from '../src/client/HostReleasePrompt.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from '../src/client/chrome.tsx'
-import type { DesktopChannelRowInjected, DesktopChannelToastInjected } from '../src/client/DesktopChannelRow.tsx'
-import type { DesktopChannelBridge } from '../src/types.ts'
 import { GeneralSection } from '../src/client/GeneralSection.tsx'
 import { SettingsDocumentAction } from '../src/client/SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from '../src/client/SettingsDocumentAction.tsx'
@@ -128,60 +126,11 @@ describe('ui-settings-general apply', () => {
     }
   }, COLD_BOOT_TIMEOUT_MS)
 
-  it('reports a Coding Tools toggle only when a known value changes to the requested one', async ({ mock, start }) => {
+  it('forwards a rejected Coding Tools write to the row', async ({ mock, start }) => {
     const { c } = await client(mock, start)
-    const track = vi.fn()
-    c.ctx.provide('productAnalytics', { enabled: true, track } as never)
-    const form = c.ctx.configForms.get<{ enabled: boolean }>('ui-settings')
-    const snapshot = form.getSnapshot()
-    let value: { enabled: boolean } | undefined = { enabled: false }
-    let accepted = true
-    let now = 100
-    const reads = vi.spyOn(form, 'getSnapshot').mockImplementation(() => ({ ...snapshot, value }))
-    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
-    const write = vi.spyOn(c.ctx.configForms.developerTools, 'setEnabled').mockImplementation(async (enabled) => {
-      now += 50
-      if (accepted) value = { enabled }
-    })
-    onTestFinished(() => {
-      reads.mockRestore()
-      clock.mockRestore()
-      write.mockRestore()
-    })
-    const row = developerToolsRowOf(c)
-
-    // The event carries the click time, before the write settles.
-    await row.setEnabled(true)
-    expect(track).toHaveBeenCalledExactlyOnceWith('code_work_view_toggle', { is_enabled: true }, 100)
-
-    // Requesting the current value writes but changes nothing.
-    await row.setEnabled(true)
-    expect(write).toHaveBeenCalledTimes(2)
-    expect(track).toHaveBeenCalledOnce()
-
-    // A write that settles without the requested value is not a toggle.
-    accepted = false
-    await row.setEnabled(false)
-    expect(value).toEqual({ enabled: true })
-    expect(track).toHaveBeenCalledOnce()
-
-    // A rejected write reports its failure and no toggle.
-    accepted = true
-    write.mockRejectedValueOnce(new Error('not accepted'))
-    await expect(row.setEnabled(false)).rejects.toThrow('not accepted')
-    expect(track).toHaveBeenCalledOnce()
-
-    // Without a known previous value the change cannot be attributed.
-    value = undefined
-    await row.setEnabled(false)
-    expect(value).toEqual({ enabled: false })
-    expect(track).toHaveBeenCalledOnce()
-
-    value = { enabled: true }
-    now = 300
-    await row.setEnabled(false)
-    expect(track).toHaveBeenCalledTimes(2)
-    expect(track).toHaveBeenLastCalledWith('code_work_view_toggle', { is_enabled: false }, 300)
+    const write = vi.spyOn(c.ctx.configForms.developerTools, 'setEnabled').mockRejectedValueOnce(new Error('not accepted'))
+    onTestFinished(() => { write.mockRestore() })
+    await expect(developerToolsRowOf(c).setEnabled(false)).rejects.toThrow('not accepted')
   })
 
   it('registers the zh/en settings dictionaries and frees the seats when its row unloads', async ({ mock, start }) => {
@@ -208,38 +157,6 @@ describe('ui-settings-general apply', () => {
     // The (ns, locale) seats are free again — the dictionary disposer ran.
     expect(() => { c.ctx.locale.register(NS, 'zh', {})() }).not.toThrow()
     expect(() => { c.ctx.locale.register(NS, 'en', {})() }).not.toThrow()
-  })
-
-  it('removes the Desktop channel row and shell subscription when its plugin unloads', async ({ mock, start }) => {
-    const unsubscribe = vi.fn()
-    const state = { channel: 'nightly', packagedChannel: 'nightly', changing: false } as const
-    const save = vi.fn(async () => ({ kind: 'applied' as const, state }))
-    const channels: DesktopChannelBridge = { get: async () => state, set: save,
-      subscribe: () => unsubscribe }
-    const open = vi.fn(async () => {})
-    vi.stubGlobal('dshDesktop', { protocolVersion: 1, updates: { channels,
-      status: async () => ({ phase: 'idle' }), open, subscribe: () => () => {} } })
-    onTestFinished(() => { vi.unstubAllGlobals() })
-    const { c } = await client(mock, start)
-    const row = c.ctx.slots.entries('settings.general.item').find(row => row.options.id === 'desktop-update-channel')!
-    expect(c.ctx.slots.entries('shell.overlay').some(entry => entry.options.id === 'desktop-channel-toast')).toBe(true)
-    const select = row.inject!().select as DesktopChannelRowInjected['select']
-    await select('stable')
-    expect(save).toHaveBeenCalledWith('stable')
-    const toast = c.ctx.slots.entries('shell.overlay').find(entry => entry.options.id === 'desktop-channel-toast')!
-    const injected = toast.inject!()
-    const hooks = injected.hooks as DesktopChannelToastInjected['hooks']
-    const dismiss = injected.dismiss as DesktopChannelToastInjected['dismiss']
-    const openConfiguration = injected.openConfiguration as DesktopChannelToastInjected['openConfiguration']
-    openConfiguration()
-    expect(open).toHaveBeenCalledOnce()
-    expect(hooks.channel.getSnapshot().notice?.outcome).toBe('applied')
-    dismiss(1)
-    expect(hooks.channel.getSnapshot().notice).toBeUndefined()
-    await c.unload(SELF)
-    await c.flush()
-    expect(unsubscribe).toHaveBeenCalledOnce()
-    expect(c.ctx.slots.entries('shell.overlay').some(entry => entry.options.id === 'desktop-channel-toast')).toBe(false)
   })
 
   it('the nav label thunk follows the active locale without re-registration', async ({ mock, start }) => {

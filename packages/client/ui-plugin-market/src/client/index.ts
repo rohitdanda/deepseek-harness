@@ -29,7 +29,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 const NS = 'pluginMarket'
 
 /** Services the section reads. */
-export const inject = ['slots', 'locale', 'remote', 'remote.pluginMarket', 'remote.pluginRegistryProbe']
+export const inject = ['slots', 'locale', 'remote', 'remote.pluginMarket']
 
 /**
  * Contribute Discover to the Plugins page and keep it current on Host changes.

@@ -2,27 +2,25 @@
 
 English | [中文](translation.zh.md)
 
-The experimental [translator](../../packages/experimental/translator/README.md) translates text through anonymous browser endpoints or explicitly selected paid native Flash routes. Consumers own display, scheduling, and Session activation; Session-bound requests retain reusable results through an active Session writer.
+The experimental [translator](../../packages/experimental/translator/README.md) translates text through native DeepSeek Flash routes selected by the configured Official API credentials. Consumers own display, scheduling, and Session activation; Session-bound requests retain reusable results through an active Session writer.
 
 ## Requests and results
 
-`TranslationProvider` selects `bing`, `google`, `deepseek-account` or `deepseek-official`. `TranslationRequest` supplies `text`, `targetLanguage`, and optional `sourceLanguage`, `provider` and branded `sessionId`. `resolve()` captures explicit routing in `TranslationSpec`: the configured provider defaults to Bing and omitted source language uses automatic detection. Common Chinese locale tags map to the selected provider's language codes. `translate()` returns plain text from the resolved provider.
+`TranslationProvider` is `deepseek-official`. `TranslationRequest` supplies `text`, `targetLanguage`, `sessionId`, and optional `sourceLanguage` and `provider`. `resolve()` captures explicit routing in `TranslationSpec`: the configured provider defaults to `deepseek-official`, omitted source language uses automatic detection, and a missing `sessionId` is rejected. Language tags enter the translation instruction verbatim. `translate()` returns plain text from the resolved route.
 
-The service exposes its configured `maxTextChars`, measured in UTF-16 code units. Consumers split longer inputs before requesting translation. Each call bounds the response bytes and includes the response-body read in its deadline. Caller cancellation and service disposal abort accepted requests; disposal waits for them to settle.
+The service exposes its configured `maxTextChars`, measured in UTF-16 code units. Consumers split longer inputs before requesting translation. Each call bounds the translated bytes and the complete model output by a deadline. Caller cancellation and service disposal abort accepted requests; disposal waits for them to settle.
 
 ## Failures and data handling
 
-`TranslationError` carries a `TranslationErrorCode` distinguishing text limits, HTTP failures, invalid responses, response limits, owned deadlines, and request failures. `TRANSLATION_SESSION_REQUIRED` rejects a missing persistence backend or Session; `TRANSLATION_SESSION_INACTIVE` rejects an uncached inactive Session before provider dispatch; `TRANSLATION_STORAGE_ERROR` rejects invalid saved records or failed durability. Provider diagnostics omit submitted text and response bodies. Failed calls do not select another provider. Responses are validated as external JSON and redirects are rejected.
+`TranslationError` carries a `TranslationErrorCode` distinguishing text limits, invalid responses, response limits, owned deadlines, and request failures. `TRANSLATION_SESSION_REQUIRED` rejects a missing persistence backend or Session; `TRANSLATION_SESSION_INACTIVE` rejects an uncached inactive Session before provider dispatch; `TRANSLATION_STORAGE_ERROR` rejects invalid saved records or failed durability. Provider diagnostics omit submitted text and response bodies. Failed calls do not select another provider.
 
-`TRANSLATION_UNAVAILABLE` rejects a missing active built-in owner or registered route, unconfigured credentials, absent exact `deepseek-flash` catalog membership, an owner, model-configuration (Official `models` or Account `modelOverrides`), or Official credential-reference change before dispatch, provider withdrawal, or a prepared call whose reasoning effort is not `off`. A native `finish` with reason `error` maps to `TRANSLATION_REQUEST_FAILED`; a missing or other non-`stop` finish maps to `TRANSLATION_INVALID_RESPONSE`.
-
-Google receives source text in a form POST body; Bing receives it in a JSON POST body. Both are remote services. Their anonymous endpoints provide no supported developer availability or quota guarantee. Regional connectivity must be verified on the user's network.
+`TRANSLATION_UNAVAILABLE` rejects a missing active built-in owner or registered route, unconfigured credentials, absent exact `deepseek-flash` catalog membership, an owner, model-configuration (Official `models`), or Official credential-reference change before dispatch, provider withdrawal, or a prepared call whose reasoning effort is not `off`. A native `finish` with reason `error` maps to `TRANSLATION_REQUEST_FAILED`; a missing or other non-`stop` finish maps to `TRANSLATION_INVALID_RESPONSE`.
 
 ## Persistent translations
 
-Session-bound calls use `plugin:translator/request` and `plugin:translator/result` for every provider. Requests retain exact source, language tags, selected provider and recipe identity; a successful result references its request sequence. Optional request metadata holds provider-specific details without changing these record types. The translator checkpoints requests before external dispatch and completed results before returning them. Read-only cache lookup precedes provider work and needs no live Session; failures and incomplete attempts do not supply reusable text. New records use the active Session's existing writer. The translator opens no write handle and does not activate a Session. Translation records preserve the original events and model input. Anonymous calls without a Session stay stateless; paid routes require a Session. Experimental record retention across future format migrations is best-effort.
+Every call uses `plugin:translator/request` and `plugin:translator/result`. Requests retain exact source, language tags, selected provider and recipe identity; a successful result references its request sequence. Optional request metadata holds provider-specific details without changing these record types. The translator checkpoints requests before external dispatch and completed results before returning them. Read-only cache lookup precedes provider work and needs no live Session; failures and incomplete attempts do not supply reusable text. New records use the active Session's existing writer. The translator opens no write handle and does not activate a Session. Translation records preserve the original events and model input. Experimental record retention across future format migrations is best-effort.
 
-Paid cache misses require an active built-in Account or Official owner, configured credentials and exact `deepseek-flash` catalog membership; names and version labels are irrelevant, and pi-ai is excluded. Each miss prepares a separate text-only query with thinking off. Its exact config, system and unique user fragment occupy optional `metadata.modelRequest` in the same request record. Saved results are read before this admission, so missing credentials do not invalidate existing translations. Native request extensions receive no main Session identity and cannot upload its full log.
+Cache misses require an active built-in Official owner, configured credentials and exact `deepseek-flash` catalog membership; names and version labels are irrelevant, and pi-ai is excluded. Each miss prepares a separate text-only query with thinking off. Its exact config, system and unique user fragment occupy optional `metadata.modelRequest` in the same request record. Saved results are read before this admission, so missing credentials do not invalidate existing translations. Native request extensions receive no main Session identity and cannot upload its full log.
 
 ## Reasoning display
 
@@ -77,7 +75,7 @@ One Host service with explicit routing, cancellation and quiescent unload.
 /**
  * Inspect eligible native routes without inference; saved results remain readable for unavailable routes.
  * @param signal - optional caller cancellation, combined with service disposal.
- * @returns anonymous choices followed by eligible explicitly selected paid routes.
+ * @returns eligible native routes, possibly none.
  */
 async availableProviders(signal?: AbortSignal): Promise<readonly TranslationProvider[]>
 
@@ -89,11 +87,11 @@ async availableProviders(signal?: AbortSignal): Promise<readonly TranslationProv
 resolve(request: TranslationRequest): TranslationSpec
 
 /**
- * Translate one resolved specification; the selected provider receives its text.
+ * Translate one resolved specification; the selected native route receives its text.
  * @param spec - complete routing and language choices from `resolve()`.
  * @param signal - optional caller cancellation, combined with service disposal.
- * @returns translated plain text, durably retained before return when a Session is supplied.
- * An uncached supplied Session must be active; otherwise rejects with `TRANSLATION_SESSION_INACTIVE` before dispatch.
+ * @returns translated plain text, durably retained before return.
+ * An uncached Session must be active; otherwise rejects with `TRANSLATION_SESSION_INACTIVE` before dispatch.
  * Rejects provider/storage/limit failures and preserves cancellation reasons.
  */
 async translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string>

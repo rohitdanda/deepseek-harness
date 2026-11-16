@@ -35,7 +35,7 @@ kind: "package-reference"
 
 剪贴板是浏览器范围的唯一目标，因此本插件实例一次只运行一项复制。在支持 `ClipboardItem` 与 `navigator.clipboard.write` 的宿主上，控制器会在点击时请求延迟的 `ClipboardItem` 写入，同时加载文档相对的 `api/session.markdown?sessionId=<id>` 路由；其他宿主在准备完成后回退到共享剪贴板助手。复制进行中到达的请求会加入该操作，并保留第一次点击的 Session。所有 Session Header 菜单在复制操作结束前禁用各自的复制行；无关操作保持可用。成功、准备失败或剪贴板失败通过根 overlay 浮层反馈。释放会中止读取，并阻止后续文本进入由 Promise 提供的 Blob；操作系统已经接受的剪贴板写入无法回滚。
 
-挂载 `ui-message-feedback` 时，同一菜单还提供“反馈”，打开已有的 Session 反馈弹窗。打开或关闭该弹窗不会导出 Session 或提交反馈。反馈入口随反馈插件的可用状态显示；两个导出操作保持独立可用。[`ui-open-in-app`](../../client/ui-open-in-app/README.zh.md) 在下载之后、反馈之前的独立分隔组中贡献应用子菜单。
+[`ui-open-in-app`](../../client/ui-open-in-app/README.zh.md) 在下载之后的独立分隔组中向同一菜单贡献应用子菜单。
 
 ### 何时选择
 
@@ -100,7 +100,7 @@ Web bundle 将本包与 Connection、`dsh-commands`、`dsh-client-ui-commands`�
 
 本包分为两部分。Host 半包（[`src/index.ts`](src/index.ts)）注册 `/export` 命令，并向 Connection 贡献精确的 `GET`/`HEAD /api/session.export` 与 `/api/session.markdown` Fetch 路由；[`src/archive.ts`](src/archive.ts) 构建有界 ZIP 流，[`src/markdown.ts`](src/markdown.ts) 渲染 Markdown 记录。浏览器半包（[`src/client/index.ts`](src/client/index.ts)）提供共享下载与 Markdown 复制控制器和 UI，并观察 `command/executed`，因此只有提交命令的浏览器会启动下载。
 
-共享右键菜单包声明被捕获的 `sessionHeader` 目标，独立于会话行及标题右键操作；conversation 包拥有其 Header 入口。本包贡献导出及可选反馈行，观察控制器、可用性与语言源。下载弹窗和复制反馈浮层挂载在根 overlay 中，独立于 Header 生命周期。
+共享右键菜单包声明被捕获的 `sessionHeader` 目标，独立于会话行及标题右键操作；conversation 包拥有其 Header 入口。本包贡献导出行，观察控制器与语言源。下载弹窗和复制反馈浮层挂载在根 overlay 中，独立于 Header 生命周期。
 
 ### 下载流程
 

@@ -1,4 +1,4 @@
-/** Explicit opt-in real SenseVoice inference, including the managed runtime when no overrides are supplied. */
+/** Explicit opt-in real SenseVoice inference with deployer-supplied model files. */
 import { readFile } from 'node:fs/promises'
 import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocess from '@deepseek-ai/dsh-subprocess-local'
@@ -7,14 +7,15 @@ import { Config } from '../src/config.ts'
 import { SenseVoiceWorker } from '../src/recognizer.ts'
 
 const { DSH_SPEECH_E2E_ROOT: dataRoot, DSH_SPEECH_E2E_AUDIO: audioPath } = process.env
+const { DSH_SPEECH_E2E_MODEL: modelDirectory, DSH_SPEECH_E2E_VAD: vadModelPath } = process.env
 
-it.skipIf(!dataRoot || !audioPath)('prepares a real local recognizer, transcribes speech, and releases it', { timeout: 3_660_000, retry: 0 }, async () => {
+it.skipIf(!dataRoot || !audioPath || !modelDirectory || !vadModelPath)('prepares a real local recognizer, transcribes speech, and releases it', { timeout: 3_660_000, retry: 0 }, async () => {
   const ctx = new Context()
   await ctx.plugin(LocalSubprocess)
   const spawn = vi.spyOn(ctx.get('subprocess')!, 'spawn')
   const worker = new SenseVoiceWorker(ctx, Config({ dataRoot: dataRoot!,
-    modelDirectory: process.env.DSH_SPEECH_E2E_MODEL,
-    vadModelPath: process.env.DSH_SPEECH_E2E_VAD,
+    modelDirectory: modelDirectory!,
+    vadModelPath: vadModelPath!,
     precision: process.env.DSH_SPEECH_E2E_PRECISION === 'fp32' ? 'fp32' : 'int8',
   }))
   try {

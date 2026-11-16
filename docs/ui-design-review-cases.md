@@ -157,9 +157,9 @@ The comparison below shows actual preset cards with unequal descriptions. On the
 <a id="case-sidebar-axes"></a>
 ### Example A1: Role-based sidebar alignment
 
-**Scene and relationship.** Compare navigation, workspace rows, conversations and the account area in the expanded sidebar. Include the centered New conversation action and the painted row edges, not only text starts.
+**Scene and relationship.** Compare navigation, workspace rows, conversations and the Settings footer in the expanded sidebar. Include the centered New conversation action and the painted row edges, not only text starts.
 
-**Failure and correction.** Applying one leading-slot width to every role can move titles, enlarge spacing or distort the signed-in account row. Preserve the owning shared variables, compact icon slots and paint insets. Retain deliberate account geometry and hierarchy instead of manufacturing one text axis across all roles.
+**Failure and correction.** Applying one leading-slot width to every role can move titles, enlarge spacing or distort the Settings footer row. Preserve the owning shared variables, compact icon slots and paint insets. Retain deliberate footer geometry and hierarchy instead of manufacturing one text axis across all roles.
 
 **Acceptance.** Use guides to compare same-role rows. Check short and long titles, optional icons, project expansion and signed-in/out account states. Revealing row actions must not move the title start. A list crop does not establish whole-sidebar alignment.
 

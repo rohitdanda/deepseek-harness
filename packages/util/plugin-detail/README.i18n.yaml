@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/util/plugin-detail/README.md
 /:
-  en: 505fd12717a89948
-  zh: 2ad120714356f61b
+  en: 2832ac3cb4d50ae3
+  zh: 80ada3054589a4cf
 /dsh-plugin-detail:
   en: 9ef51ea35aa9ea60
   zh: 341593614dac3945
 /dsh-plugin-detail/summary:
-  en: 9a5bdafd69ed0208
-  zh: d436f289724bab19
+  en: d2b756d932e495e7
+  zh: 04440612fa43bbca
 /dsh-plugin-detail/table-of-contents:
   en: cd2a60a905c978d6
   zh: cc71d387d0cbd442
@@ -18,20 +18,20 @@
   en: ccdf3fdf80317f76
   zh: 023b893b30d1dd5b
 /dsh-plugin-detail/use-this-package/document-order:
-  en: fe28217d182b9174
-  zh: 0a0b4a61ee4009eb
+  en: 7872408a9bf801ac
+  zh: 137b6ea8148ade25
 /dsh-plugin-detail/use-this-package/images:
   en: abeb7bb1f7695e5e
   zh: 59b87c9abea17dfb
 /dsh-plugin-detail/use-this-package/file-sources:
-  en: 9542401a7d104851
-  zh: 99f80d2960b77bc8
+  en: 8a8dd746afb93586
+  zh: b2d9c27b8e7ad923
 /dsh-plugin-detail/use-this-package/image-responses:
   en: d6e7da207ee7f2fb
   zh: c7b6acaa4d2839a2
 /dsh-plugin-detail/api:
-  en: ed9c0c624558d944
-  zh: 9373180d9edb1012
+  en: bca2d57ad8b88f11
+  zh: a56cfa0974ca282b
 /dsh-plugin-detail/model-experience:
   en: 60eeeeff73bf48b4
   zh: cf3e6e1885719d6a
@@ -39,8 +39,8 @@
   en: 4f0eadf94828e66e
   zh: 4f8a6ec170ebbfb6
 /dsh-plugin-detail/known-limitations-and-deferred-work:
-  en: 5d8abfbb06761f7f
-  zh: 8515079f96e513bf
+  en: 8f0dd5cf2143e3b8
+  zh: ba52723d7026d374
 /dsh-plugin-detail/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: 3bb0c20c93f16f98

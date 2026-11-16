@@ -82,7 +82,7 @@ async function fixture(options: {
   ].join('\n'))
   const show = vi.fn<(options: MessageBoxOptions) => Promise<MessageBoxReturnValue>>()
   const manager = new DesktopCommandManager({
-    resources, isPackaged: true, isInstalledLocation: () => true, isInstalling: () => false, isQuitting: () => false,
+    resources, isPackaged: true, isInstalledLocation: () => true, isQuitting: () => false,
     messages: () => options.messages ?? en, show,
   })
   const calls = async (): Promise<Array<{ operation: string; expected?: string }>> =>
@@ -130,7 +130,7 @@ it.skipIf(process.platform !== 'darwin')('keeps a declined worker response throu
   await f.manager.show()
   expect(external.elevations).toBe(1)
   expect(await f.calls()).toEqual([{ operation: 'inspect' }, { operation: 'install', expected: 'a'.repeat(64) }, { operation: 'install', expected: 'a'.repeat(64) }])
-  expect(f.show.mock.lastCall![0]).toMatchObject({ message: en.cliCommandChanged, technicalDetails: 'worker declined' })
+  expect(f.show.mock.lastCall![0]).toMatchObject({ message: en.cliCommandChanged, detail: 'worker declined' })
 })
 
 it.skipIf(process.platform !== 'darwin')('returns without an error dialog when administrator authorization is cancelled', async () => {
@@ -143,7 +143,7 @@ it.skipIf(process.platform !== 'darwin')('returns without an error dialog when a
   expect(await f.calls()).toEqual([{ operation: 'inspect' }, { operation: 'install', expected: 'a'.repeat(64) }])
 })
 
-it('coalesces repeated menu clicks and keeps update preparation waiting for the active decision', async () => {
+it('coalesces repeated menu clicks onto the active decision', async () => {
   const f = await fixture()
   const shown = Promise.withResolvers<undefined>()
   const choice = Promise.withResolvers<MessageBoxReturnValue>()
@@ -151,12 +151,7 @@ it('coalesces repeated menu clicks and keeps update preparation waiting for the 
   const first = f.manager.show()
   expect(f.manager.show()).toBe(first)
   await shown.promise
-  let idle = false
-  const waiting = f.manager.idle().then(() => { idle = true })
-  await Promise.resolve()
-  expect(idle).toBe(false)
   choice.resolve({ response: 1, checkboxChecked: false })
-  await Promise.all([first, waiting])
-  expect(idle).toBe(true)
+  await first
   expect(await f.calls()).toEqual([{ operation: 'inspect' }])
 })

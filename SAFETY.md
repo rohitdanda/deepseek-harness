@@ -14,6 +14,10 @@ Sandboxing, approval prompts, and permission controls can reduce risk, but they 
 
 Do not rely on DeepSeek Harness as the sole security control for untrusted workloads.
 
+## Data and network use
+
+This build contains no telemetry, analytics, feedback upload, update checks, or crash upload; crash reports are written locally only. DeepSeek Harness contacts the model endpoints you configure and the tools and plugin operations you direct, such as web fetch, MCP servers, or plugin installation. Review those destinations before use: model requests carry your conversation content, and a tool you direct may send data to other hosts.
+
 ## Responsible use
 
 - Run the project with the least privileges and access required.

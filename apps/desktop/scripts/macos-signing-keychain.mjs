@@ -63,8 +63,7 @@ export async function withMacOSSigningKeychain(environment, action, run = execut
     security(['set-keychain-settings', keychain])
     security(['import', certificate, '-k', keychain, '-P', exportPassword, '-T', '/usr/bin/codesign', '-T', '/usr/bin/productbuild'])
     security(['set-key-partition-list', '-S', 'apple-tool:,apple:', '-s', '-k', password, keychain])
-    // codesign ignores --keychain unless that file is also on the search list
-    // (https://github.com/electron-userland/electron-builder/issues/1457).
+    // codesign ignores --keychain unless that file is also on the search list.
     previousKeychains = readUserKeychains(run)
     security(['list-keychains', '-d', 'user', '-s', keychain, ...previousKeychains])
     const probe = join(directory, 'probe')

@@ -36,7 +36,7 @@
       "path": "../../client/store"
     },
     {
-      "path": "../../client/ui-plugin-manager/tsconfig.client.json"
+      "path": "../../client/ui-plugin-manager"
     },
     {
       "path": "../../typert/protocol"

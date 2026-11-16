@@ -1,4 +1,4 @@
-/** Deployment configuration for the managed local SenseVoice recognizer. */
+/** Deployment configuration for the managed local SenseVoice recognizer; model files are supplied by the deployer. */
 import z from '@deepseek-ai/schemastery'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 
@@ -6,20 +6,14 @@ import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 export interface Config {
   /** Unique registration id; consumers select this exact id. */
   providerId: string
-  /** Absolute directory for verified ONNX models. */
+  /** Absolute working directory of the managed worker process. */
   dataRoot: string
-  /** Existing directory containing the selected ONNX model and tokens.txt; omission downloads verified files. */
-  modelDirectory?: string | undefined
-  /** Existing Silero VAD ONNX file; omission downloads the verified model. */
-  vadModelPath?: string | undefined
-  /** Weight precision; INT8 minimizes first-use download and model storage. */
+  /** Absolute directory containing the selected SenseVoice ONNX file (`model.int8.onnx` or `model.onnx`) and `tokens.txt`. */
+  modelDirectory: string
+  /** Absolute path of the Silero VAD ONNX file. */
+  vadModelPath: string
+  /** Weight precision; selects the ONNX file name inside `modelDirectory`. */
   precision: 'int8' | 'fp32'
-  /** Explicit Hugging Face-compatible origin; bypasses automatic selection and public fallback. */
-  modelOrigin?: string | undefined
-  /** Hugging Face-compatible origins compared before downloading each missing asset. */
-  modelOrigins: string[]
-  /** Deadline for concurrent HEAD probes, including redirects to the actual asset. */
-  modelProbeTimeoutMs: number
   /** CPU intra-operation thread count. */
   threads: number
   /** Maximum speech segment length passed to the recognizer. */
@@ -34,7 +28,7 @@ export interface Config {
   vadOnsetPaddingSeconds: number
   /** Maximum decoded WAV bytes accepted by the private worker. */
   maxAudioBytes: number
-  /** Deadline for runtime preparation and cold model loading. */
+  /** Deadline for resource inspection and cold model loading. */
   prepareTimeoutMs: number
   /** Deadline for one inference after the worker is ready. */
   inferenceTimeoutMs: number
@@ -48,21 +42,15 @@ export interface Config {
   maxLogBytes: number
   /** Maximum transcript response bytes. */
   maxResponseBytes: number
-  /** Minimum interval between intermediate download progress notifications. */
-  progressIntervalMs: number
 }
 
 /** Validate deployment-varying runtime choices at plugin activation. */
 export const Config: z<Partial<Config>, Config> = z.object({
   providerId: z.string().min(1).default('sensevoice-local'),
   dataRoot: z.string().min(1).required(),
-  modelDirectory: z.union([z.string().min(1), z.const(undefined)]),
-  vadModelPath: z.union([z.string().min(1), z.const(undefined)]),
+  modelDirectory: z.string().min(1).required(),
+  vadModelPath: z.string().min(1).required(),
   precision: z.union(['int8', 'fp32']).default('int8'),
-  modelOrigin: z.union([z.string().pattern(/^https?:\/\/[^/\s?#@]+\/?$/), z.const(undefined)]),
-  modelOrigins: z.array(z.string().pattern(/^https?:\/\/[^/\s?#@]+\/?$/)).min(1)
-    .default(['https://huggingface.co', 'https://hf-mirror.com']),
-  modelProbeTimeoutMs: z.natural().min(1).max(MAX_TIMER_DELAY_MS).default(3000),
   threads: z.natural().min(1).default(2),
   segmentSeconds: z.number().min(1).max(120).default(30),
   vadThreshold: z.number().min(0).max(1).default(0.5),
@@ -77,5 +65,4 @@ export const Config: z<Partial<Config>, Config> = z.object({
   graceMs: z.natural().min(1).max(MAX_TIMER_DELAY_MS).default(1000),
   maxLogBytes: z.natural().min(1).default(64 * 1024),
   maxResponseBytes: z.natural().min(1).default(128 * 1024),
-  progressIntervalMs: z.natural().min(1).max(MAX_TIMER_DELAY_MS).default(100),
 })

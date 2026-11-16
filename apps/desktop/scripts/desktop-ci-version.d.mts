@@ -1,7 +1,7 @@
 /** Resolve the version used by the manual Desktop packaging workflow. */
 
 /**
- * Resolve an explicit version or a UTC date/run/attempt identifier without release storage access.
+ * Resolve an explicit version or a UTC date/run/attempt identifier.
  * @param environment Manual version and GitHub run identity.
  * @param productVersion Version declared by the selected checkout.
  * @param now Time used for the UTC date segment.

@@ -78,7 +78,6 @@
     "zod": "4.6.6",
     "@deepseek-ai/dsh-util-values": "workspace:*",
     "@deepseek-ai/dsh-plugin-detail": "workspace:*",
-    "@deepseek-ai/dsh-timeout": "workspace:*",
     "hosted-git-info": "^9.0.3"
   },
   "peerDependencies": {

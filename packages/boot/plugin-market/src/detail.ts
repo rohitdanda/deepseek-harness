@@ -1,12 +1,11 @@
 /**
  * Plugin market entry detail documents: the package document {@link readPackageDocument} selects from the entry
- * version's source, otherwise the README of the repository directory the entry or its package declares; cached reads
+ * version's source, otherwise the README of the repository directory the entry declares; cached reads
  * and the images beside a read document.
  */
 import { createHash } from 'node:crypto'
-import { posix } from 'node:path'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import { DetailFailure, detailImage, joinPath, markdownOf, readPackageDocument, type DetailFiles } from '@deepseek-ai/dsh-plugin-detail'
+import { DetailFailure, detailImage, markdownOf, readPackageDocument, type DetailFiles } from '@deepseek-ai/dsh-plugin-detail'
 import hostedGitInfo from 'hosted-git-info'
 import { repositoryFiles, type RepositoryFileOptions, type RepositoryRef } from './detail-files.ts'
 import type { PluginDetail, PluginDetailDocumentId, PluginDetailOrigin } from './types.ts'
@@ -23,11 +22,8 @@ export interface DetailLocation {
   readonly files?: DetailFiles
   /** Package directory inside `files`, `''` for its root. */
   readonly dir: string
-  /**
-   * The repository read last, at its default branch; `manifest` reads `repository` from the package's `package.json`
-   * in `files`.
-   */
-  readonly repository: RepositoryLocation | 'manifest' | undefined
+  /** The repository read last, at its default branch. */
+  readonly repository: RepositoryLocation | undefined
 }
 
 /** Limits of detail documents and their images. */
@@ -44,7 +40,7 @@ const LASTING_FAILURES = new Set<DetailFailure['reason']>(['too-large', 'denied'
 /**
  * The repository a URL or shorthand names: hosts npm knows by their owner and project, so a GitHub page such as
  * `/o/r/tree/main/pkg` names `o/r`; other http(s) URLs by their path, without a GitLab `/-/` page suffix.
- * @param url - a manifest `repository` URL or shorthand, or a market index's `repository.url`.
+ * @param url - a Git source URL or a market index's `repository.url`.
  * @returns the repository, or undefined for a gist, another protocol, or fewer than two path segments.
  */
 export function repositoryOf(url: string): RepositoryRef | undefined {
@@ -64,28 +60,6 @@ export function repositoryOf(url: string): RepositoryRef | undefined {
     return undefined
   }
   return { host: parsed.hostname.toLowerCase(), project, url: `${parsed.protocol}//${parsed.host}/${project}.git` }
-}
-
-/**
- * Parse a manifest `repository` into the repository and directory its README is read from.
- * @param value - a manifest `repository` string or object.
- * @returns the location, or undefined when it names no repository {@link repositoryOf} accepts; a `directory` that
- *   leaves the repository is dropped.
- */
-export function manifestRepository(value: unknown): RepositoryLocation | undefined {
-  const object = typeof value === 'object' && value !== null ? value as { url?: unknown; directory?: unknown } : undefined
-  const declared = object === undefined ? value : object.url
-  if (typeof declared !== 'string') return undefined
-  const repository = repositoryOf(declared)
-  if (repository === undefined) return undefined
-  return { ...repository, directory: typeof object?.directory === 'string' ? normalizedDirectory(object.directory) ?? '' : '' }
-}
-
-/** A `/`-separated directory without empty, `.`, or `..` segments; undefined for one that leaves its root. */
-function normalizedDirectory(directory: string): string | undefined {
-  const normalized = posix.normalize(directory.replace(/\\/gu, '/')).replace(/\/+$/u, '')
-  if (normalized === '.' || normalized === '') return ''
-  return normalized === '..' || normalized.startsWith('../') || posix.isAbsolute(normalized) ? undefined : normalized
 }
 
 /** A read document and the files its images resolve against. */
@@ -189,27 +163,15 @@ export class DetailReader {
 
   private async resolve(location: DetailLocation, languages: readonly string[], signal: AbortSignal): Promise<PluginDetail> {
     const { files, dir } = location
-    let repository = location.repository === 'manifest' ? undefined : location.repository
+    const { repository } = location
     if (files !== undefined) {
       const document = await readPackageDocument(files, dir, languages, this.limits.maxDocumentBytes, signal)
       if (document !== undefined) return this.found(document.origin, files, document.path, document.markdown)
-      if (location.repository === 'manifest') repository = await this.manifestRepositoryOf(files, dir, signal)
     }
     if (repository === undefined) return { status: 'none' }
     const source = repositoryFiles(repository, undefined, this.repositories)
     const readme = await source.readme(repository.directory, this.limits.maxDocumentBytes, signal)
     return readme === undefined ? { status: 'none' } : this.found('repository', source, readme.path, markdownOf(readme.bytes))
-  }
-
-  private async manifestRepositoryOf(files: DetailFiles, dir: string, signal: AbortSignal): Promise<RepositoryLocation | undefined> {
-    const bytes = await files.read(joinPath(dir, 'package.json'), this.limits.maxDocumentBytes, signal)
-    if (bytes === undefined) return undefined
-    try {
-      return manifestRepository((JSON.parse(new TextDecoder().decode(bytes)) as { repository?: unknown } | null)?.repository)
-    } catch (_malformed) {
-      // A manifest the package manager accepted parses; an unreadable one names no repository to read.
-      return undefined
-    }
   }
 
   private found(origin: PluginDetailOrigin, files: DetailFiles, path: string, markdown: string): PluginDetail {

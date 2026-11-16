@@ -16,13 +16,13 @@ translator 对所有 Provider 统一使用 `plugin:translator/request` 和 `plug
 
 只读查找先于 Provider 调用。新记录通过已激活 Session 的现有写入器调用 `appendPluginRecord` 并定向刷新。未激活 Session 缓存未命中时，在 Provider 调用前拒绝；GUI 消费者等待 Session controller 的正常激活，再重试一次。
 
-这些记录与[原始思考内容](2026-10-05-anonymous-reasoning-translation.zh.md)一同保留，从不替换其事件或模型输入。它们使用现有的实验性记录写入器，格式迁移采用尽力保留语义。Provider 可用性限制新请求，已保存结果无需再次推理即可读取。不指定 Session 时，translator 仍支持无状态调用。
+这些记录与原始思考内容一同保留，从不替换其事件或模型输入。它们使用现有的实验性记录写入器，格式迁移采用尽力保留语义。Provider 可用性限制新请求，已保存结果无需再次推理即可读取。不指定 Session 时，translator 仍支持无状态调用。
 
 ## 考虑过的替代方案
 
 **只保留展开区域内的结果。** 重新展开会丢失已展示值并再次发送同样的文本，可能重复计费。
 
-**匿名翻译与模型翻译使用不同的结果格式。** 读者对所有 Provider 都需要相同的原文到译文关系。Provider 自有审计细节属于可选 metadata。
+**为每个 Provider 使用独立的结果格式。** 读者对所有 Provider 都需要相同的原文到译文关系。Provider 自有审计细节属于可选 metadata。
 
 **替换原始 assistant 思考内容。** 翻译属于派生数据。与原文并存可以保留模型历史和原文访问能力。
 

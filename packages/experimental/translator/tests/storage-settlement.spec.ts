@@ -12,7 +12,7 @@ afterEach(async () => {
   vi.restoreAllMocks()
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
-const identity: TranslationIdentity = { provider: 'bing', text: 'source', sourceLanguage: 'auto', targetLanguage: 'zh', recipe: 'fixture' }
+const identity: TranslationIdentity = { provider: 'deepseek-official', text: 'source', sourceLanguage: 'auto', targetLanguage: 'zh', recipe: 'fixture' }
 
 describe('accepted translation write settlement', () => {
   it.each([false, true])('holds identical admission until the accepted result write settles (reject=%s)', async (rejectWrite) => {

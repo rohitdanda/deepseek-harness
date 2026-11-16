@@ -1,4 +1,3 @@
-import { expectDesktopArchive } from './desktop-archive-workflow-test.ts'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -71,7 +70,7 @@ it('routes manual packaging to the dedicated runner with explicit preset and sig
   expect(workflow.concurrency).toEqual({ group: 'windows-desktop-package', 'cancel-in-progress': false })
   expect(workflow.permissions).toEqual({ contents: 'read' })
   expect(Object.keys(workflow.on.workflow_dispatch!.inputs).sort()).toEqual([
-    'build_version', 'cache_namespace', 'compression_level', 'preset', 'signing', 'source_ref', 'test_release_id', 'update_channel', 'version_mode',
+    'build_version', 'cache_namespace', 'compression_level', 'preset', 'signing', 'source_ref', 'version_mode',
   ])
   expect(workflow.on.workflow_dispatch!.inputs.signing!.default).toBe('signed')
   expect(workflow.on.workflow_dispatch!.inputs.compression_level).toMatchObject({ type: 'choice', options: ['3', '7'], default: '3', required: true })
@@ -79,10 +78,8 @@ it('routes manual packaging to the dedicated runner with explicit preset and sig
   expect(workflow.on.workflow_dispatch!.inputs.build_version!.required).toBe(false)
   expect(workflow.on.workflow_dispatch!.inputs.version_mode!.default).toBe('default')
   expect(workflow.on.workflow_dispatch!.inputs.source_ref!.default).toBe('master')
-  expect(workflow.on.workflow_dispatch!.inputs.update_channel!.default).toBe('nightly')
   expect(job.env.PACKAGE_VERSION_MODE).toBe("${{ inputs.version_mode == 'follow-dsh' && 'product' || inputs.version_mode == 'build-number' && 'auto' || inputs.version_mode }}")
   expect(job.env.PACKAGE_SOURCE_REF).toBe('${{ inputs.source_ref }}')
-  expect(job.env.DSH_DESKTOP_UPDATE_CHANNEL).toBe('${{ inputs.update_channel }}')
   expect(job.env.DSH_PACKAGING_PRESET).toBe('${{ inputs.preset }}')
   expect(job.env.PACKAGE_SIGNING).toBe('${{ inputs.signing }}')
   expect(job.steps.find(step => step.id === 'checkout')!.with).toMatchObject({ clean: true, 'persist-credentials': false, ref: '${{ inputs.source_ref }}' })
@@ -107,17 +104,22 @@ it('validates before building and passes the same mode and version to checks and
 })
 
 it('retains failure diagnostics and uploads only the selected successful installer', () => {
+  expect(Object.keys(workflow.jobs)).toEqual(['package'])
   const uploads = job.steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'))
-  expect(uploads).toHaveLength(1)
-  const archive = workflow.jobs['upload-artifact']!
-  const archival = expectDesktopArchive(archive, 1)
-  expect(uploads[0]!.if).toBe("always() && steps.checkout.outcome == 'success'")
-  expect(uploads[0]!.with).toMatchObject({
+  expect(uploads).toHaveLength(2)
+  const [installer, diagnostics] = uploads
+  expect(job.steps.find(step => step.id === 'installer')?.env).toEqual({ PACKAGE_VERSION: '${{ steps.settings.outputs.version }}' })
+  expect(installer!.if).toBeUndefined()
+  expect(installer!.with).toMatchObject({
+    name: '${{ steps.installer.outputs.name }}', path: '${{ steps.installer.outputs.path }}',
+    archive: false, overwrite: true, 'if-no-files-found': 'error', 'retention-days': 14,
+  })
+  expect(job.steps.indexOf(installer!)).toBeGreaterThan(job.steps.findIndex(step => step.name === 'Build installer and verify packaged runtime'))
+  expect(diagnostics!.if).toBe("always() && steps.checkout.outcome == 'success'")
+  expect(diagnostics!.with).toMatchObject({
     path: '${{ github.workspace }}/apps/desktop/.desktop-build/packaging-runs/',
     'include-hidden-files': true,
   })
-  expect(archive.env.DESKTOP_ARCHIVE_NAME).toBe('windows-x64-${{ inputs.signing }}-${{ needs.package.outputs.version }}-${{ github.run_id }}-${{ needs.package.outputs.attempt }}.zip')
-  expect(archival[0]!.with).toMatchObject({ path: '${{ steps.archive.outputs.path }}', 'if-no-files-found': 'error', archive: false, overwrite: true, name: '${{ env.DESKTOP_ARCHIVE_NAME }}' })
 })
 
 it('normalizes priority in the dependency and packaging shells before launching their children', () => {
@@ -213,11 +215,4 @@ it.skipIf(process.platform !== 'win32')('stages helpers that remain usable when 
   } finally {
     rmSync(directory, { recursive: true, force: true, maxRetries: 3 })
   }
-})
-
-it('archives with native PowerShell and the persistent packaging store', () => {
-  const archival = workflow.jobs['upload-artifact']!
-  expect(archival.defaults?.run.shell).toBe('pwsh')
-  expect(archival.steps.find(step => step.name === 'Configure persistent pnpm store')?.run)
-    .toBe(job.steps.find(step => step.name === 'Configure persistent pnpm store')?.run)
 })

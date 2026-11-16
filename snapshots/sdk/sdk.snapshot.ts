@@ -470,8 +470,7 @@ function normalizeNotifications(notifications: readonly HarnessNotification[], c
   const events = notifications
     .filter(n => n.method === 'session.event')
     .map(n => n.params.event as Record<string, unknown>)
-  const typedIdentities = events.some(event => event.type === 'feedback/message-put'
-    || event.type === 'job/registered' || event.type === 'job/settled')
+  const typedIdentities = events.some(event => event.type === 'job/registered' || event.type === 'job/settled')
   const eventLog = events.map(event => JSON.stringify(event)).join('\n') + '\n'
   const typedLog = typedIdentities
     ? redactSessionSnapshotIds([
@@ -528,17 +527,6 @@ function records(log: string): JsonObject[] {
   return log.split(/\r?\n/)
     .filter(line => line.trim() !== '')
     .map(line => JSON.parse(line) as JsonObject)
-}
-
-function notificationComparisonRecords(log: string, sourceLogs: readonly string[]): JsonObject[] {
-  const versions = sourceLogs.map((source, index) => sessionHeaderVersion(source, `notification Session ${index}`))
-  expect(new Set(versions).size, 'wire golden Session roles share one native writer generation').toBe(1)
-  return records(log).map((record) => {
-    if (record.method !== 'session.event') return record
-    const params = record.params as JsonObject
-    const event = JSON.parse(normalizeSessionFormatMetadata(JSON.stringify(params.event), versions[0])) as unknown
-    return { ...record, params: { ...params, event } }
-  })
 }
 
 function modelFromSession(log: string): { provider: string; model: string } {
@@ -712,7 +700,6 @@ const legacySdkCompositions = new Set([
   'dynamic-tool-updates',
   'image',
   'ptc',
-  'sdk-account-provider-signout',
   'sdk-default',
   'sdk-dsh-sdk-diagnostic',
   'sdk-dsh-sdk-dynamic-route',
@@ -826,7 +813,6 @@ async function runScenario(scenario: CorpusScenario): Promise<{
     DSH_SNAPSHOT: mode,
     DSH_SNAPSHOT_PROVIDER: route.provider,
     DSH_SNAPSHOT_MODEL: route.model,
-    DSH_TELEMETRY_DISABLED: '1',
     DSH_AGENTS_HOME: join(cwd, '.agents'),
     NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
     ...parentFixture === undefined ? {} : {
@@ -1014,12 +1000,6 @@ async function runScenario(scenario: CorpusScenario): Promise<{
           expect(parentMessages.at(-1)).toMatchObject({
             data: { turn: 2, message: { content: [{ type: 'text', text: 'SUBAGENT_SETTLED_NOTED' }] } },
           })
-        }
-        if (scenario.manifest.environment?.DSH_SNAPSHOT_FEEDBACK === '1') {
-          const feedback = result.events.filter(event => event.type.startsWith('feedback/'))
-          expect(feedback.map(event => event.type)).toEqual([
-            'feedback/record', 'feedback/record', 'feedback/message-put', 'feedback/message-put', 'feedback/message-delete',
-          ])
         }
         await waitForRootEvent(
           subscription,
@@ -1680,8 +1660,8 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
 
       // Persisted transcripts match the committed fixtures.
       const expectedContext = contextOfContents(expectedContents)
-      const actualSnapshots = normalizeSessionSnapshots(ordered.map(log => log.content), actualContext, { nativeWriterOutput: true })
-      const expectedSnapshots = normalizeSessionSnapshots(expectedContents, expectedContext, { nativeWriterOutput: true })
+      const actualSnapshots = normalizeSessionSnapshots(ordered.map(log => log.content), actualContext)
+      const expectedSnapshots = normalizeSessionSnapshots(expectedContents, expectedContext)
       expect(actualSnapshots.map(records), `${scenario.name}: sessions`).toEqual(expectedSnapshots.map(records))
       await verifyHeaders(scenario, ordered, actualContext, assertions.dshSdkChild?.agentConfig)
 
@@ -1696,11 +1676,8 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
           await writeFile(resultExpectedPath, normalizedResult)
         }
         const expectedNotifications = await readFile(notificationsExpectedPath, 'utf8')
-        expect(
-          notificationComparisonRecords(normalizedNotifications, ordered.map(log => log.content)),
-          `${scenario.name}: notifications`,
-        )
-          .toEqual(notificationComparisonRecords(expectedNotifications, expectedContents))
+        expect(records(normalizedNotifications), `${scenario.name}: notifications`)
+          .toEqual(records(expectedNotifications))
         expect(normalizedResult).toBe(await readFile(resultExpectedPath, 'utf8'))
       }
 

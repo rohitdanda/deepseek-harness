@@ -6,11 +6,11 @@
   en: b19652a0e1cc1826
   zh: 4d3511e4f0db5b9d
 /agent-note-one-outbound-proxy-policy-installed-before-anything-can-request/problem:
-  en: 6379f0a2522f4c46
-  zh: c45ffeb5089be274
+  en: 0351203cae666a8f
+  zh: 24170e73c07459a8
 /agent-note-one-outbound-proxy-policy-installed-before-anything-can-request/decision:
-  en: 5168301af05473ed
-  zh: 30b840cb41998bee
+  en: d74ed53c48305b70
+  zh: bde968a6bba121fb
 /agent-note-one-outbound-proxy-policy-installed-before-anything-can-request/alternatives-considered:
   en: df6c078f239a11f5
   zh: 914da26836aa373b
@@ -18,5 +18,5 @@
   en: ff1898a64e5db79c
   zh: 0a77d02385fb3506
 /agent-note-one-outbound-proxy-policy-installed-before-anything-can-request/testing:
-  en: fddb0be6abbd809e
-  zh: 88843f0f3ea60555
+  en: fcb4aeb74075ac07
+  zh: a3c8a4673b7b66a7

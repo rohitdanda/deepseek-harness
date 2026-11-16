@@ -18,11 +18,7 @@ The input facade captures a revision-bearing selection before recording. `InputA
 
 ## Preparation and settings
 
-`SpeechProviderInfo.downloadSources` advertises preparation origins. `SpeechPreparationOptions.downloadSource` selects one for a task; omission preserves provider policy. SenseVoice validates the advertised choice, pins a manual source without fallback, and rejects source changes during active preparation. The UI keeps a choice for retries in the current card; it is not a persisted recognition preference.
-
-The Host provider owns one preparation task across page and Session changes. The Client shares one `follow()` subscription across the composer, setup prompt and bundle details. Optional `SpeechSetupEstimate` metadata supplies provider-specific planning hints, separate from measured progress. `SpeechPreparationStepKind` identifies ordered resource operations; `SpeechPreparationStep` records each status and start time. The complete `SpeechPreparationState` retains these steps after cancellation or failure. The collapsed UI shows the current operation; expanding lists all steps, with byte progress or elapsed time only for the running step. Closing an observer never cancels preparation. Verified files survive retries and idle worker reclamation.
-
-Failed preparation can include `SpeechDownloadFailure` with the asset, source origin, classified reason and optional diagnostic code or HTTP status. The Client localizes recovery advice; raw download causes remain on the Host.
+The Host provider owns one preparation task across page and Session changes. The Client shares one `follow()` subscription across the composer, setup prompt and bundle details. Optional `SpeechSetupEstimate` metadata supplies provider-specific planning hints, separate from measured progress. `SpeechPreparationStepKind` identifies ordered resource operations; `SpeechPreparationStep` records each status and start time. The complete `SpeechPreparationState` retains these steps after cancellation or failure. The collapsed UI shows the current operation; expanding lists all steps, with elapsed time only for the running step. Closing an observer never cancels preparation. Model files stay on disk across retries and idle worker reclamation.
 
 The microphone occupies `conversation.input.activity`, between the model selector and Send. Clicking starts capture and expands the toolbar; Stop transcribes and inserts into the draft. The activity preserves the editor and submit action, owns local feedback, and releases expansion on unmount. Cancel, Escape or hiding the page discards capture. Waveform history displays measured microphone amplitude. Bundle details contain recognition preferences, preparation state and progress. Explicit enablement uses `plugins.bundle.activation` to guide users with missing models to setup; the list shows only the bundle description and switch.
 
@@ -68,9 +64,8 @@ Speech calls never activate or submit to an Agent.
 /**
  * Start or join one Host-owned preparation task.
  * @param providerId - selected recognizer.
- * @param options - task-local source selection validated by the provider.
  */
-@Remote prepare(providerId: SpeechProviderId, options?: SpeechPreparationOptions): void
+@Remote prepare(providerId: SpeechProviderId): void
 
 /**
  * Explicitly cancel resource preparation.
@@ -133,9 +128,8 @@ async configure(patch: SpeechSelectionPatch): Promise<void>
 /**
  * Start or join provider-owned preparation.
  * @param id - exact registered provider identity.
- * @param options - task-local source selection validated by the provider.
  */
-prepare(id: SpeechProviderId, options?: SpeechPreparationOptions): void
+prepare(id: SpeechProviderId): void
 
 /**
  * Explicitly cancel provider preparation without tying it to a browser connection.

@@ -12,13 +12,9 @@ vi.mock('../scripts/windows-asar-unpack.mjs', async importOriginal => ({
 
 const ENVIRONMENT = {
   DSH_DESKTOP_APP_ID: 'com.example.installer',
-  DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.com',
-  DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: JSON.stringify({ allowedAuthOrigins: ['https://login.example.com'] }),
   DSH_DESKTOP_TARGET_PLATFORM: 'win32',
   DSH_DESKTOP_TARGET_ARCH: 'x64',
   DSH_DESKTOP_UNSIGNED: '1',
-  DOWNLOAD_TEST_ORIGIN: 'https://desktop-updates.example.com',
-  DOWNLOAD_TEST_RELEASE_ID: '0123456789abcdef0123456789abcdef',
 }
 
 const CONTEXT = { appOutDir: 'out', packager: { getResourcesDir: () => 'out/resources' } }
@@ -43,9 +39,9 @@ describe('packaged runtime verification', () => {
     expect(await requiredRuntimeVersion()).toBe(productVersion)
   })
 
-  it('requires the version installed-update qualification wrote into its private runtime', async () => {
-    // Qualification rewrites the runtime's own version, so comparing against the product version would always fail.
-    expect(await requiredRuntimeVersion('/qualification/dsh', '0.1.6-alpha.2.20260921.1')).toBe('0.1.6-alpha.2.20260921.1')
+  it('requires the version a supplied private runtime declares', async () => {
+    // A private runtime declares its own version, so comparing against the product version would always fail.
+    expect(await requiredRuntimeVersion('/private/dsh', '0.1.6-alpha.2.20260921.1')).toBe('0.1.6-alpha.2.20260921.1')
   })
 
   it('does not let a build version change what the bundled runtime must declare', async () => {

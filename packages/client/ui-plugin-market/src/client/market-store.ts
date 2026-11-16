@@ -1,5 +1,4 @@
 /** Discover state: configured index sources, the selected index's query and loaded results, and source editing. */
-import { NPMMIRROR_REGISTRY } from '@deepseek-ai/dsh-plugin-manager/registry'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { LocalizedText } from '@deepseek-ai/dsh-package-manifest'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -54,8 +53,6 @@ export interface DetailRequest {
   readonly url: string
   readonly name: string
   readonly version: string
-  /** Whether the version is an npm package; the Host reads those of the public registries from the npm file CDNs. */
-  readonly npm: boolean
 }
 
 /** Why a detail read failed: the Host's `plugin-market/detail-unavailable` reason, or `other` for any other failure. */
@@ -260,21 +257,9 @@ export class DiscoverController {
     const read = ++this.detailSequence
     this.detailReads.set(key, read)
     this.publishDetail(key, { status: 'loading' })
-    // The remote is captured before any wait: the plugin's context may be disposed while the comparison runs.
-    const { remote } = this.ctx
-    const current = (): boolean => !this.disposed && this.detailReads.get(key) === read
-    // Only an npm version waits for the registry comparison; a Git version is read at once.
-    // npmmirror is asked first where its registry answered the Host's comparison fastest.
-    let npmFileSources: 'npmmirror'[] = []
-    if (request.npm) {
-      const fastest = await remote.pluginRegistryProbe.fastest()
-      // A retry or reset started while the comparison ran settles the key instead.
-      if (!current()) return
-      if (fastest.ok && fastest.value === NPMMIRROR_REGISTRY) npmFileSources = ['npmmirror']
-    }
     const { url, name, version } = request
-    const answer = await remote.pluginMarket.readEntryDetail(url, name, version, language, { refresh, npmFileSources })
-    if (current()) this.publishDetail(key, answer.ok ? { status: 'ready', detail: answer.value } : { status: 'error', failure: detailFailure(answer.error) })
+    const answer = await this.ctx.remote.pluginMarket.readEntryDetail(url, name, version, language, { refresh })
+    if (!this.disposed && this.detailReads.get(key) === read) this.publishDetail(key, answer.ok ? { status: 'ready', detail: answer.value } : { status: 'error', failure: detailFailure(answer.error) })
   }
 
   private publishDetail(key: string, state: DetailState): void {

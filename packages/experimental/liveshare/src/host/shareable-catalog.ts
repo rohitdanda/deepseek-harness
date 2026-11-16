@@ -24,9 +24,9 @@ import type { ShareablePluginCatalog } from './viewer-capability-types.ts'
  */
 export const EXCLUDED_SHARE_NAMESPACES: ReadonlySet<string> = new Set([
   'session', 'workspace', 'workspaceFiles', 'terminal', 'settings', 'credentials', 'account',
-  'job', 'goals', 'schedule', 'subagents', 'userQuestions', 'messageFeedback', 'llm',
-  'pluginManager', 'pluginMarket', 'pluginRegistryProbe', 'directoryPicker', 'fileUploads',
-  'skills', 'toolResults', 'remoteAccess', 'sessionFeedback', 'sessionReferenceResolver',
+  'job', 'goals', 'schedule', 'subagents', 'userQuestions', 'llm',
+  'pluginManager', 'pluginMarket', 'directoryPicker', 'fileUploads',
+  'skills', 'toolResults', 'remoteAccess', 'sessionReferenceResolver',
   'agentPresets', 'liveshareShares',
 ])
 

@@ -205,7 +205,7 @@ it.each(['test', 'production'])('computes the same %s build key through selectio
   const config = join(f.root, 'config')
   mkdirSync(join(config, 'presets'), { recursive: true })
   mkdirSync(join(config, 'secrets'))
-  writeFileSync(join(config, 'presets', `${preset}.env`), `DSH_DESKTOP_AUTO_UPDATE_ENV=${preset}\n`)
+  writeFileSync(join(config, 'presets', `${preset}.env`), '')
   writeFileSync(join(config, 'secrets/signing.p12'), 'fixture certificate')
   writeFileSync(join(config, 'secrets/macos-signing.env'), [
     'CSC_LINK=./signing.p12', 'CSC_KEY_PASSWORD=fixture-password', 'DSH_DESKTOP_MACOS_TEAM_ID=ABCDEFGHIJ',

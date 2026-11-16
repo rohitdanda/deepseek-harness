@@ -37,7 +37,7 @@ describe('cua-mcp bundle', () => {
     expect(readdirSync(resolve(root, 'locale')).sort()).toEqual(['de.json', 'en.json', 'es.json', 'fr.json', 'ja.json', 'pt.json', 'ru.json', 'zh.json'])
   })
 
-  it('composes the standalone profile from one insert without model adapters, prompt tools, or telemetry', () => {
+  it('composes the standalone profile from one insert without model adapters or prompt tools', () => {
     expect(patches.map(patch => Object.keys(patch))).toEqual([['insert']])
     expect(inserted.map(entry => entry.id)).toEqual([
       'session', 'session-persistence-jsonl', 'session-projection', 'attachment-local', 'working-directory',
@@ -47,7 +47,7 @@ describe('cua-mcp bundle', () => {
       'cua-mcp-presets', 'cua-mcp-preset', 'cua-mcp-computer-use', 'cua-mcp-provider', 'cua-mcp-provider-windows', 'cua-mcp',
     ])
     // The llm hub carries no adapter row, so no model request can leave this profile.
-    expect(inserted.map(entry => entry.name).filter(name => /llm|telemetry|otel|web|subagent|compaction|skill|plugin-manager/.test(name)))
+    expect(inserted.map(entry => entry.name).filter(name => /llm|web|subagent|compaction|skill|plugin-manager/.test(name)))
       .toEqual(['@deepseek-ai/dsh-llm'])
     expect(row('agent-loop')?.config).toEqual({ agents: [] })
     expect(row('cua-mcp-presets')?.config).toEqual({ default: 'cua-mcp' })

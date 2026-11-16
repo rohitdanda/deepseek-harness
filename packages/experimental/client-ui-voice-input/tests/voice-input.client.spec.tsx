@@ -319,8 +319,7 @@ it('offers installation on click without a preparation tooltip', () => {
 
 it.each<SpeechPreparationState>([
   { phase: 'checking', step: 'check', startedAt: 0 },
-  { phase: 'downloading', resource: 'model', completedBytes: 0 },
-  { phase: 'failed', message: 'download failed' },
+  { phase: 'failed', message: 'preparation failed' },
   { phase: 'cancelled' },
 ])('guides $phase recognition to its status page without starting recording or preparation', (preparation) => {
   const b = fixture(), state = b.readiness.getSnapshot()

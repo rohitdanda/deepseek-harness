@@ -18,8 +18,8 @@
   en: e2b17a8dff46e81c
   zh: 2391ed8fdf502a30
 /agent-note-authentication-provider-integration/decision/use-scoped-webserver-events:
-  en: 3f191940167f3f9e
-  zh: 6e4f20d1f66f5454
+  en: 3e40f176f86c2045
+  zh: e9c8b1f7409ff6b8
 /agent-note-authentication-provider-integration/decision/keep-socket-policy-with-the-issuing-product:
   en: 59235b955e65e342
   zh: 76d9314d0a738438
@@ -27,8 +27,8 @@
   en: 0676f301d5aec364
   zh: 0ef43eba7bfe2f01
 /agent-note-authentication-provider-integration/testing:
-  en: c783cb006f9962a4
-  zh: 79bf36b25665e49c
+  en: 63f6226e6bd4a791
+  zh: e1f32215a54111aa
 /agent-note-authentication-provider-integration/alternatives-considered:
   en: 868953274abd81e8
   zh: 1b2890de876a6db6

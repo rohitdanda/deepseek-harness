@@ -5,30 +5,24 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { BlockAssembler, type ReasoningEffortId, type LlmRuntime, type GenerateOptions, type RequestUserInput, type FinishReason, type TextBlock } from '@deepseek-ai/dsh-llm'
-import type { Config as AccountNativeConfig } from '@deepseek-ai/dsh-llm-deepseek-account'
 import type { Config as OfficialNativeConfig } from '@deepseek-ai/dsh-llm-deepseek-api-key'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type { Config } from './index.ts'
-import type { PaidTranslationProvider, PaidTranslationSpec, TranslationIdentity, TranslationProvider } from './types.ts'
+import type { TranslationIdentity, TranslationProvider, TranslationSpec } from './types.ts'
 import { TranslationError } from './error.ts'
 import type { TranslationLog } from './storage.ts'
 
 const MODEL = 'deepseek-flash'
-const OWNER_PACKAGES = { 'deepseek-account': '@deepseek-ai/dsh-llm-deepseek-account',
-  'deepseek-official': '@deepseek-ai/dsh-llm-deepseek-api-key' } as const
+const OWNER_PACKAGE = '@deepseek-ai/dsh-llm-deepseek-api-key'
 
-interface NativeOwnerFields { llm: LlmRuntime; fiber: Fiber }
-type NativeOwner = NativeOwnerFields & (
-  | { provider: 'deepseek-account'; config: AccountNativeConfig }
-  | { provider: 'deepseek-official'; config: OfficialNativeConfig }
-)
-/** Configured model input of an owner: Account overrides over its listing, or the Official catalog. */
-type ModelConfig = ReturnType<AccountNativeConfig['modelOverrides']['get']> | ReturnType<OfficialNativeConfig['models']['get']>
-type EligibleOwner = NativeOwner & { modelConfig: ModelConfig; apiKeyRef?: string }
+interface NativeOwner { llm: LlmRuntime; fiber: Fiber; provider: TranslationProvider; config: OfficialNativeConfig }
+/** Configured model input of an owner: the Official catalog. */
+type ModelConfig = ReturnType<OfficialNativeConfig['models']['get']>
+type EligibleOwner = NativeOwner & { modelConfig: ModelConfig; apiKeyRef: string }
 
 function modelConfigOf(owner: NativeOwner): ModelConfig {
-  return owner.provider === 'deepseek-account' ? owner.config.modelOverrides.get() : owner.config.models.get()
+  return owner.config.models.get()
 }
 
 /**
@@ -65,43 +59,39 @@ function awaitMetadata<T>(start: () => Promise<T>, signal: AbortSignal, track: (
   })
 }
 
-function nativeOwner(ctx: Context, provider: PaidTranslationProvider): NativeOwner | undefined {
+function nativeOwner(ctx: Context, provider: TranslationProvider): NativeOwner | undefined {
   const llm = ctx.get('llm'), loader = ctx.get('loader')
   if (llm === undefined || loader === undefined || !llm.listProviders().some(row => row.id === provider)) return undefined
   const directory = llm.listConfigurableProviders().find(row => row.provider === provider)
   if (directory === undefined || directory.settingsPath.length !== 0) return undefined
-  const entry = [...loader.entries()].find(row => row.options.id === directory.settingsNs && row.options.name === OWNER_PACKAGES[provider])
+  const entry = [...loader.entries()].find(row => row.options.id === directory.settingsNs && row.options.name === OWNER_PACKAGE)
   if (entry?.fiber?.state !== FiberState.ACTIVE) return undefined
-  return provider === 'deepseek-account'
-    ? { llm, fiber: entry.fiber.ctx.fiber, provider, config: entry.fiber.effectiveConfig as AccountNativeConfig }
-    : { llm, fiber: entry.fiber.ctx.fiber, provider, config: entry.fiber.effectiveConfig as OfficialNativeConfig }
+  return { llm, fiber: entry.fiber.ctx.fiber, provider, config: entry.fiber.effectiveConfig as OfficialNativeConfig }
 }
 
-function unchanged(ctx: Context, provider: PaidTranslationProvider, previous: EligibleOwner): NativeOwner | undefined {
+function unchanged(ctx: Context, provider: TranslationProvider, previous: EligibleOwner): NativeOwner | undefined {
   const current = nativeOwner(ctx, provider)
   if (current === undefined || current.fiber !== previous.fiber
     || modelConfigOf(current) !== previous.modelConfig
-    || (current.provider === 'deepseek-official' && current.config.apiKeyEnv.get() !== previous.apiKeyRef)) return undefined
+    || current.config.apiKeyEnv.get() !== previous.apiKeyRef) return undefined
   return current
 }
 
-async function eligible(ctx: Context, provider: PaidTranslationProvider, signal: AbortSignal,
+async function eligible(ctx: Context, provider: TranslationProvider, signal: AbortSignal,
   track: (work: Promise<unknown>) => void): Promise<EligibleOwner | undefined> {
   signal.throwIfAborted()
   const owner = nativeOwner(ctx, provider)
   if (owner === undefined) return undefined
   const modelConfig = modelConfigOf(owner)
-  const apiKeyRef = owner.provider === 'deepseek-official' ? owner.config.apiKeyEnv.get() : undefined
-  if (apiKeyRef !== undefined) {
-    const credentials = ctx.get('credentials')
-    if (credentials === undefined) {
-      if ((launchEnvironmentOf(ctx).get(apiKeyRef)?.value.length ?? 0) === 0) return undefined
-    } else if (!(await awaitMetadata(() => credentials.describe(credentialRef(apiKeyRef)), signal, track)).configured) return undefined
-  }
+  const apiKeyRef = owner.config.apiKeyEnv.get()
+  const credentials = ctx.get('credentials')
+  if (credentials === undefined) {
+    if ((launchEnvironmentOf(ctx).get(apiKeyRef)?.value.length ?? 0) === 0) return undefined
+  } else if (!(await awaitMetadata(() => credentials.describe(credentialRef(apiKeyRef)), signal, track)).configured) return undefined
   const catalog = await awaitMetadata(() => owner.llm.listModels(provider), signal, track)
   signal.throwIfAborted()
   if (!catalog.some(model => model.id === MODEL)) return undefined
-  const accepted = { ...owner, modelConfig, ...apiKeyRef === undefined ? {} : { apiKeyRef } }
+  const accepted = { ...owner, modelConfig, apiKeyRef }
   return unchanged(ctx, provider, accepted) === undefined ? undefined : accepted
 }
 
@@ -111,13 +101,13 @@ async function eligible(ctx: Context, provider: PaidTranslationProvider, signal:
  * @param config - deadline for discovery.
  * @param signal - caller and service cancellation.
  * @param track - translator-owned settlement tracking for lookups that cannot accept cancellation.
- * @returns anonymous choices followed by eligible explicitly named paid routes.
+ * @returns eligible native routes, possibly none.
  */
-export async function availablePaidProviders(ctx: Context, config: Config, signal: AbortSignal,
+export async function availableNativeProviders(ctx: Context, config: Config, signal: AbortSignal,
   track: (work: Promise<unknown>) => void): Promise<readonly TranslationProvider[]> {
   using timeout = deadline(signal, config.deepseekTimeoutMs, 'TRANSLATION_TIMEOUT')
-  const available: TranslationProvider[] = ['bing', 'google']
-  for (const provider of ['deepseek-account', 'deepseek-official'] as const) {
+  const available: TranslationProvider[] = []
+  for (const provider of ['deepseek-official'] as const) {
     try {
       const candidate = await eligible(ctx, provider, timeout.signal, track)
       timeout.signal.throwIfAborted()
@@ -134,15 +124,15 @@ export async function availablePaidProviders(ctx: Context, config: Config, signa
 /**
  * Audit and dispatch exactly one native Flash request with disabled thinking.
  * @param ctx - translator context with optional native services.
- * @param spec - explicit paid route, fragment, target language and existing Session.
- * @param config - paid deadline/output-token cap and shared response-byte limit.
+ * @param spec - explicit native route, fragment, target language and existing Session.
+ * @param config - deadline/output-token cap and shared response-byte limit.
  * @param signal - caller and service cancellation.
  * @param track - translator-owned settlement tracking for lookups that cannot accept cancellation.
  * @param log - common Session storage for this already cache-checked attempt.
  * @param identity - exact fragment, languages, route, and semantic recipe.
  * @returns non-empty text from a stop finish; all other outcomes reject safely.
  */
-export async function translateWithDeepSeek(ctx: Context, spec: PaidTranslationSpec, config: Config, signal: AbortSignal,
+export async function translateWithDeepSeek(ctx: Context, spec: TranslationSpec, config: Config, signal: AbortSignal,
   track: (work: Promise<unknown>) => void, log: TranslationLog, identity: TranslationIdentity): Promise<string> {
   const execution = new AbortController()
   using timeout = deadline(AbortSignal.any([signal, execution.signal]), config.deepseekTimeoutMs, 'TRANSLATION_TIMEOUT')

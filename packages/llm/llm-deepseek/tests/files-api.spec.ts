@@ -386,12 +386,12 @@ describe('DeepSeekFilesClient', () => {
   })
 })
 
-it('authenticates Files with the raw DSH token', async () => {
+it('authenticates Files with exactly the headers the connection supplies', async () => {
   const client = new DeepSeekFilesClient({
-    baseURL: 'https://api.deepseek.com', headers: { 'x-dsh-auth-token': 'account-token' },
+    baseURL: 'https://api.deepseek.com', headers: { 'x-custom-token': 'custom-token' },
     fetch: (_url, init) => {
       const headers = new Headers(init?.headers)
-      expect(headers.get('x-dsh-auth-token')).toBe('account-token')
+      expect(headers.get('x-custom-token')).toBe('custom-token')
       expect(headers.has('authorization')).toBe(false)
       expect(headers.has('x-api-key')).toBe(false)
       return Promise.resolve(new Response(JSON.stringify({ object: 'list', data: [], has_more: false }), { status: 200 }))

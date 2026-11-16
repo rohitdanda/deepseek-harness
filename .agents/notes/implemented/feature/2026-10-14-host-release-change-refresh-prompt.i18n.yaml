@@ -24,11 +24,11 @@
   en: c0610c8f5a0882f3
   zh: d309cbc53183ec6e
 /agent-note-prompt-to-reload-when-the-host-release-changes-instead-of-hot-replacing-across-releases/decision/ui:
-  en: 41b5a3346a7edffa
-  zh: a05ed84017556760
+  en: 0ea7fe99b0245eb7
+  zh: 3809d375cb401ddc
 /agent-note-prompt-to-reload-when-the-host-release-changes-instead-of-hot-replacing-across-releases/alternatives-considered:
-  en: abb9d7ab9ef1df15
-  zh: 1704732daf5f2886
+  en: 15fad2fc6acad662
+  zh: b180f79d55d6af97
 /agent-note-prompt-to-reload-when-the-host-release-changes-instead-of-hot-replacing-across-releases/consequences:
   en: 815b41dc4f9ffcee
   zh: b57388264cc459c7

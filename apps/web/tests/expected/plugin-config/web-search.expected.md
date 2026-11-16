@@ -4,23 +4,14 @@
 - region "网页搜索提供方":
   - heading "网页搜索提供方" [level=4]
   - button "网页搜索提供方 DeepSeek Search API": DeepSeek Search API
-  - paragraph: 会产生费用，由「计费方式」选定的账号或 API Key 支付。
-  - paragraph:
-    - link "网页搜索与获取指南":
-      - /url: https://api-docs.deepseek.com/zh-cn/guides/search
+  - paragraph: 会产生费用，由 DeepSeek API Key 支付。
   - text: 每次搜索结果数
   - textbox "每次搜索结果数":
     - /placeholder: ""
     - text: "10"
   - paragraph: 每次搜索返回的结果条数，1–50，默认 10。
-  - text: 计费方式
-  - button "计费方式 自动": 自动
-  - paragraph: 跟随当前会话的 DeepSeek 账号或 API Key；会话用其他模型时，优先用 API Key，没有则用已登录账号。
 - region "网页获取提供方":
   - heading "网页获取提供方" [level=4]
   - button "网页获取提供方 DeepSeek Fetch API": DeepSeek Fetch API
-  - paragraph: 无法访问内网和本机。会产生费用，由「计费方式」选定的账号或 API Key 支付。
-  - text: 计费方式
-  - button "计费方式 自动": 自动
-  - paragraph: 跟随当前会话的 DeepSeek 账号或 API Key；会话用其他模型时，优先用 API Key，没有则用已登录账号。
+  - paragraph: 无法访问内网和本机。会产生费用，由 DeepSeek API Key 支付。
 - button "保存" [disabled]

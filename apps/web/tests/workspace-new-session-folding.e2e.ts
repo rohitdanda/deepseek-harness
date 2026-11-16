@@ -20,7 +20,7 @@ import { newEnglishPage, saveFailureShot } from './support.ts'
 
 const EXPECTED_DIR = fileURLToPath(new URL('./expected/workspace-new-session-folding', import.meta.url))
 const SIDEBAR_EXPECTED = join(EXPECTED_DIR, 'sidebar.expected.md')
-const SEED = fileURLToPath(new URL('../../../snapshots/web/message-feedback-protocol/session.v3.jsonl', import.meta.url))
+const SEED = join(EXPECTED_DIR, 'seed.session.v3.jsonl')
 const MODE = webSnapshotMode()
 const EXISTING_SESSION_COUNT = 16
 

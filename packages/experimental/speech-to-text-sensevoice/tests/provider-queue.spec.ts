@@ -32,7 +32,7 @@ it.each([false, true])('queues recordings during startup and honors waiting canc
     await ctx.plugin(SpeechToText, { defaultProvider: 'sensevoice-local', language: 'auto' })
     const spawn = vi.spyOn(ctx.subprocess, 'spawn')
     const enqueue = vi.spyOn(SenseVoiceWorker.prototype, 'transcribe')
-    await ctx.plugin(Provider, { dataRoot: root, idleTimeoutMs: 0, maxPending: 2 })
+    await ctx.plugin(Provider, { dataRoot: root, modelDirectory: root, vadModelPath: join(root, 'silero_vad.onnx'), idleTimeoutMs: 0, maxPending: 2 })
     const speech = ctx.get('speechToText')!
     await vi.waitFor(() => { expect(speech.snapshot().providers[0]?.preparation.phase).toBe('standby') })
     const firstSpec = speech.resolve({ audio: new Uint8Array([1, 2]), language: 'zh' })

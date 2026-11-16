@@ -106,7 +106,7 @@ class ClientEntries {
 
 ### UI
 
-- 归属：[ui-settings-general](../../../../packages/client/ui-settings-general/src/client/index.ts)，它已经拥有连接状态药丸（`ConnectionIndicator`）和 Desktop 更新提示；其 `inject` 增加 `modules`。
+- 归属：[ui-settings-general](../../../../packages/client/ui-settings-general/src/client/index.ts)，它已经拥有连接状态药丸（`ConnectionIndicator`）；其 `inject` 增加 `modules`。
 - 它通过 `ctx.slots.inject('shell.overlay', ...)` 注册 `shell.overlay` 条目 `host-release-change`，用 `Modal` 渲染。inject 面提供 `hooks: { releaseChange: ctx.modules.entries.releaseChange }`、`dismissRelease` 和 `reloadPage`。
 - 文案在中英 locale 字典里：一个标题、一句说明热更新已暂停直到刷新，以及两行灰色标签的版本：
   - **服务**：`previous`（灰）→ `host`（实色），1px 绿色实线箭头，表示 Host 已经切换。
@@ -128,7 +128,7 @@ class ClientEntries {
 - **把选择写进 localStorage**：这个选择只关乎一个页面的代码，而刷新会替换这些代码，所以不应比页面活得更久。
 - **记住每一个撤回过的 release**：页面在多个 Host release 之间来回切换的情况很少，出现其他 release 后再问一次只多一次点击。
 - **身份保持一个不透明字符串，由页面拆出版本号和 commit**：显示规则需要分开这两部分，从拼接字符串里拆解，格式一变就会出错。
-- **新建一个独立 UI 包**：要多做三处注册，而 ui-settings-general 已经拥有连接状态和更新提示。
+- **新建一个独立 UI 包**：要多做三处注册，而 ui-settings-general 已经拥有连接状态。
 
 ## Consequences
 

@@ -1,4 +1,4 @@
-/** Empty local caches guide explicit enablement to plugin setup without starting installation. */
+/** Missing local model files guide explicit enablement to plugin setup without starting preparation. */
 import { fileURLToPath } from 'node:url'
 import { chromium, type Browser } from 'playwright'
 import { expect, it, onTestFinished } from 'vitest'
@@ -8,7 +8,7 @@ import { newEnglishPage } from './support.ts'
 const bundle = fileURLToPath(new URL('../../../packages/experimental/voice-input-bundle', import.meta.url))
 const expected = fileURLToPath(new URL('./expected/voice-setup.expected.md', import.meta.url))
 
-it('guides a newly enabled voice plugin to installation and lets the user postpone it', async () => {
+it('guides a newly enabled voice plugin to setup and lets the user postpone it', async () => {
   const resources: { scaffold?: WebScaffold; browser?: Browser } = {}
   onTestFinished(async () => {
     try { await resources.browser?.close() } finally { await resources.scaffold?.close() }
@@ -36,17 +36,9 @@ it('guides a newly enabled voice plugin to installation and lets the user postpo
   await toggle.click()
   await page.getByRole('switch', { name: 'Enable Voice input', exact: true, checked: false }).click()
   await dialog.getByRole('button', { name: 'Go to setup', exact: true }).click()
-  await page.getByRole('button', { name: 'Download and prepare', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Prepare', exact: true }).waitFor()
   expect(await dialog.count()).toBe(0)
-  expect(await page.getByText('Local models will be downloaded to the machine running DSH. No Python or compiler is required.', { exact: true }).count()).toBe(1)
-  expect(await page.getByText('Audio is recognized on the machine running DSH. If models need downloading, that machine must be able to reach the selected source and its file services. Configure a proxy on that machine if needed.', { exact: true }).count()).toBe(1)
-  const source = page.getByLabel('Model download source', { exact: true })
-  expect(await source.inputValue()).toBe('')
-  expect(await source.getByRole('option').allTextContents()).toEqual(['Automatic (recommended)', 'Hugging Face', 'HF-Mirror (China mirror)'])
-  await compareOrRefreshGolden(fileURLToPath(new URL('./expected/voice-source-auto.expected.md', import.meta.url)),
-    await captureStableAria(page, '[data-speech-provider]', scaffold.workspaceCwd), webSnapshotMode())
-  await source.selectOption('https://hf-mirror.com')
-  await compareOrRefreshGolden(fileURLToPath(new URL('./expected/voice-source-manual.expected.md', import.meta.url)),
-    await captureStableAria(page, '[data-speech-provider]', scaffold.workspaceCwd), webSnapshotMode())
+  expect(await page.getByText('Local models are read from the model files configured on the machine running DSH. No Python or compiler is required.', { exact: true }).count()).toBe(1)
+  expect(await page.getByText('Audio is recognized on the machine running DSH, using model files stored on that machine.', { exact: true }).count()).toBe(1)
   expect(tripwire.pageErrors).toEqual([])
 })

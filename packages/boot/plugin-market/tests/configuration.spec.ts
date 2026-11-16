@@ -30,7 +30,7 @@ it('saves index sources without remounting, announces them, and restores them at
     writeFileSync(join(dir, 'cordis.yml'), '[]\n')
     const profile: ProfileContext = {
       name: 'test', startedBundles: ['test-bundle'], dir, patchPath: join(dir, 'cordis.patch.yml'),
-      installAnchor: join(home, 'package.json'), cwd: home, home, overlays: [], telemetryDisabledEnv: undefined,
+      installAnchor: join(home, 'package.json'), cwd: home, home, overlays: [],
     }
     const start = () => boot('test', join(dir, 'cordis.yml'), readProfilePatches('test', profile), (root) => {
       root.provide('profileContext', profile)
@@ -72,18 +72,19 @@ class RecordingConnection extends Service {
 it('reads a market entry detail document and serves its images through the composed profile', async () => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-plugin-market-detail-')))
   const commit = 'c'.repeat(40)
-  const raw = `https://raw.githubusercontent.com/o/r/${commit}/pkg`
+  /** The GitLab single-file API URL of one file of the entry's package directory. */
+  const raw = (path: string): string => `https://gitlab.com/api/v4/projects/o%2Fr/repository/files/${encodeURIComponent(`pkg/${path}`)}/raw?ref=${commit}`
   const files: Record<string, string> = {
     'https://first.example/index.json': JSON.stringify({ format: 1, title: 'Market', plugins: [{
-      name: 'from-git', versions: [{ version: '1.0.0', publishTimestamp: 1, source: { type: 'git', url: 'https://github.com/o/r', commit, path: 'pkg' }, engines: { dsh: '*' } }],
+      name: 'from-git', versions: [{ version: '1.0.0', publishTimestamp: 1, source: { type: 'git', url: 'https://gitlab.com/o/r', commit, path: 'pkg' }, engines: { dsh: '*' } }],
     }] }),
-    [`${raw}/locale/en.json`]: JSON.stringify({ meta: { detail: 'guide/DETAIL.md' } }),
-    [`${raw}/locale/zh.json`]: JSON.stringify({ meta: { detail: 'guide/DETAIL.zh.md' } }),
-    [`${raw}/guide/DETAIL.md`]: '# Test entry\n\n![diagram](img/diagram.svg)\n',
-    [`${raw}/guide/DETAIL.zh.md`]: '# 测试条目\n',
-    [`${raw}/guide/img/diagram.svg`]: '<svg xmlns="http://www.w3.org/2000/svg"/>',
-    // The repository is public, so a file missing from the raw host is missing from the repository.
-    'https://github.com/o/r.git/info/refs?service=git-upload-pack': 'refs',
+    [raw('locale/en.json')]: JSON.stringify({ meta: { detail: 'guide/DETAIL.md' } }),
+    [raw('locale/zh.json')]: JSON.stringify({ meta: { detail: 'guide/DETAIL.zh.md' } }),
+    [raw('guide/DETAIL.md')]: '# Test entry\n\n![diagram](img/diagram.svg)\n',
+    [raw('guide/DETAIL.zh.md')]: '# 测试条目\n',
+    [raw('guide/img/diagram.svg')]: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    // The repository is public, so a file missing from the single-file API is missing from the repository.
+    'https://gitlab.com/o/r.git/info/refs?service=git-upload-pack': 'refs',
   }
   vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url in files ? new Response(files[url]) : new Response('missing', { status: 404 }))))
   let ctx: Awaited<ReturnType<typeof boot>> | undefined
@@ -98,7 +99,7 @@ it('reads a market entry detail document and serves its images through the compo
     writeFileSync(join(dir, 'cordis.yml'), '- name: cordis:connection\n')
     const profile: ProfileContext = {
       name: 'test', startedBundles: ['test-bundle'], dir, patchPath: join(dir, 'cordis.patch.yml'),
-      installAnchor: join(home, 'package.json'), cwd: home, home, overlays: [], telemetryDisabledEnv: undefined,
+      installAnchor: join(home, 'package.json'), cwd: home, home, overlays: [],
     }
     ctx = await boot('test', join(dir, 'cordis.yml'), readProfilePatches('test', profile), (root) => {
       root.provide('profileContext', profile)

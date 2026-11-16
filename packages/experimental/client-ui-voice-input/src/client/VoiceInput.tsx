@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TokenSpan } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TranscriptionRequest } from '@deepseek-ai/dsh-experimental-api-speech-to-text/types'
-import type { SpeechPreparationOptions, SpeechProviderId, SpeechSelection, SpeechSelectionPatch, Transcript } from '@deepseek-ai/dsh-experimental-speech-to-text/types'
+import type { SpeechProviderId, SpeechSelection, SpeechSelectionPatch, Transcript } from '@deepseek-ai/dsh-experimental-speech-to-text/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { audioBase64, type Recording } from './audio.ts'
 import { failureText } from './failure-text.ts'
@@ -24,7 +24,7 @@ export interface VoiceInputActions {
   /** Remember the browser microphone used by previews and subsequent recordings. */
   selectMicrophone: (device: MicrophoneDevice) => void
   transcribe: (request: TranscriptionRequest, signal: AbortSignal) => Promise<RemoteResult<Transcript>>
-  prepare: (providerId: SpeechProviderId, options?: SpeechPreparationOptions) => Promise<void>
+  prepare: (providerId: SpeechProviderId) => Promise<void>
   cancelPreparation: (providerId: SpeechProviderId) => Promise<void>
   configure: (patch: SpeechSelectionPatch) => Promise<void>
 }

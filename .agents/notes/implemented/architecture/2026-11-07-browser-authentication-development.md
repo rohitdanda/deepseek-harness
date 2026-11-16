@@ -87,15 +87,13 @@ Every WebServer event has the corresponding WebServer as its Cordis thisArg. Req
 
 | Event | Mode | Final integration |
 |---|---|---|
-| `webserver/request` | waterfall | Runs before route selection; Token exchanges root Token queries, and the account plugin handles its validated OAuth callback |
+| `webserver/request` | waterfall | Runs before route selection; Token exchanges root Token queries |
 | `webserver/authorize` | bail | Resolves the matched route's source and credential admission; the first decision wins |
 | `webserver/upgrade` | waterfall | Runs after admission and before the protocol handler, carrying the already selected Peer |
 | `webserver/index-inject` | emit | Collects page or Worker startup data for the supplied Peer within the server isolation |
 | `webserver/entry-url` | emit | Collects complete entry URLs for the supplied base address within the server isolation |
 
 Waterfall listeners own the response or Socket when they handle a request; otherwise they await `next()`. Exceptions are contained by the carrier and end that response or Socket. Source policy is not disabled for every anonymous route to accommodate a login protocol.
-
-The account plugin registers a temporary callback listener before generic admission. It matches the initiating redirect URI's authority and exact path, then preserves GET, single state/code values, constant-time state comparison, active-attempt checks, expiry, cancellation, and S256 PKCE. Thus a valid cross-site browser return can finish without bypassing those checks or weakening unrelated anonymous routes. The listener leaves with the attempt; it does not import a WebServer implementation helper.
 
 ### Keep Socket policy with the issuing product
 
@@ -118,7 +116,6 @@ Desktop's parent owns a fresh private credential per Host process and delivers i
 | Provider registration | Only built-in BrowserAuth supplied network identity | Ordered independent verifiers select one live Peer; scope unload, verifier failure, and cancellation are covered by [authentication tests](../../../../packages/client/connection/tests/authentication.host.spec.ts) |
 | HTTP and upgrade integration | Consumers called Connection admission | Route auth supplies the Peer once; real [Provider transport tests](../../../../packages/api/gateway/tests/authentication-provider.host.spec.ts) exercise both carriers |
 | Server isolation | Route tables were per instance; index injection was root-wide | All five events use the WebServer subject; [server](../../../../packages/host/webserver/tests/event-isolation.host.spec.ts) and [application](../../../../packages/bundle/web-app/tests/event-isolation.host.spec.ts) tests cover ordinary and global listeners and a preserved external Host |
-| Browser OAuth return | The callback validated state and PKCE | The scoped pre-route callback retains validation and accepts real cross-site navigation; [account tests](../../../../packages/credentials/deepseek-account/tests/account.spec.ts) retain wrong-Host and SSH-forwarding coverage, and [Chromium](../../../../apps/web/tests/account-login.e2e.ts) asserts the actual Fetch Metadata header |
 | Startup output | WebApp printed/opened one Connection-produced login URL | [Startup tests](../../../../packages/bundle/web-app/tests/startup.host.spec.ts) cover ordered entries, first eligible opening, empty lists, readiness and SSH suppression |
 | Desktop runtime consumers | A tokenized ready URL was exchanged for a Cookie | [Runtime smoke tests](../../../../apps/desktop/tests/smoke-runtime.spec.ts) use the private Cookie on the HTTP probes; [built Remote tests](../../../../packages/api/remotes/tests/built-lib.e2e.ts) collect the current Provider's entry and pass the admitted Peer |
 

@@ -43,7 +43,7 @@
       "path": "../../client/ui-conversation/tsconfig.client.json"
     },
     {
-      "path": "../../client/ui-plugin-manager/tsconfig.client.json"
+      "path": "../../client/ui-plugin-manager"
     },
     {
       "path": "../../client/ui-primitives"

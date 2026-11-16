@@ -55,14 +55,6 @@ interface CredentialInfo {
 
 `credentials/reference-updated (ref)` 在提供方管理的来源发生已提交变更后发出——`set`、`unset` 或在存储中观察到的外部编辑。进程环境自身的变化不可观测，永不发出事件。消费方不需要该事件（它们按操作重新解析）；它服务于配置界面刷新「已配置」徽标。
 
-## 内嵌 Platform 凭证
-
-PlatformSession 是 getPlatformSession 返回的仅限 Host 快照：origin 指定所配置的 Platform 签发来源，token 包含其已存账号凭证。userId 复制最近一次成功 getProfile 得到的稳定账号 ID；尚无一次成功读取或资料不含 ID 时为 null。快照复用该 ID，不自行发起资料请求，因此 ID 未知时只会让 userId 为 null，而不会延迟调用方；资料读取首次取得稳定 ID 或该 ID 变化时仅通知使用 `watch(signal, true)` 的 Host 订阅者，供标识使用方重新读取快照。使用方以 origin 和 userId 作为持久化浏览器存储的键，为 null 时退回临时存储。账号已退登或读取凭证期间凭证变化时不返回快照；签发来源不匹配时失败。原生使用方负责在凭证变化时使文档失效。账号 Remote API、AccountView 和 AccountDetails 均不包含此快照。
-
-AccountDetails.balance 将充值钱包投影为 value、赠送钱包投影为 bonusWallets，分别保留币种和十进制余额字符串。查询失败不包含钱包数组。
-
-赠金通知查询返回 AccountBonusBatch，包含当前 Platform 账号 id 和按服务端顺序排列的可通知订单。AccountBonusNotification 保留服务端消息与到期时间，不投影凭证。确认请求携带预期账号 id 和订单 id；账号变化后 Host 拒绝该请求。两项通知操作都通过 x-client-locale 传递发起界面的语言，不使用语言查询参数。
-
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -131,6 +123,48 @@ async begin(request: AuthorizationRequest): Promise<AuthorizationOutcome>
 ```
 
 Source: [`packages/credentials/authorization/src/index.ts`](../../packages/credentials/authorization/src/index.ts)
+
+<a id="ctxauthorizationcontroller--authorizationcontroller"></a>
+
+### `ctx.authorizationController` — `AuthorizationController`
+
+Host service backing the generated `ctx.remote.authorization` namespace. It lets one browser page run a registered authorization flow and answer its questions. No frame or result carries a credential: the flow commits the record through the credential store itself, and this namespace reports only whether one is stored.
+
+```ts cordis-catalog
+/**
+ * Describe one flow and whether its credential is stored.
+ * @param key - credential record key the flow writes, as `<scope>/<id>`.
+ * @returns the flow's methods, whether an attempt runs, and whether a record is stored;
+ *   null when no flow is registered for the key.
+ * @throws RemoteError when the key is malformed or no authorization service is mounted.
+ */
+@Remote async status(key: string): Promise<AuthorizationStatusView | null>
+
+/**
+ * Run one sign-in attempt, streaming what the flow tells the human.
+ * @param key - credential record key whose flow to run, as `<scope>/<id>`.
+ * @param method - which of the flow's methods to run; omitted runs its first.
+ * @param signal - the stream's lifetime; ending it withdraws the attempt.
+ * @returns notice and prompt frames in order, ending with one `settled` frame. The page answers a
+ *   prompt by sending an {@link AuthorizationReply} on the same stream.
+ * @throws RemoteError `authorization/rejected` when no flow claims the key, the method is not
+ *   offered, an attempt is already running, or the flow fails; `gateway/bad-request` for a malformed key.
+ */
+@Remote({ mode: 'stream' }) async *begin( key: string, method: string | undefined, signal: AbortSignal, ): RemoteStream<AuthorizationFrame, AuthorizationReply>
+
+/**
+ * Forget the stored credential of one flow. Nothing is revoked at the issuer.
+ * @param key - credential record key whose record to delete, as `<scope>/<id>`.
+ * @returns the flow's status after the record is gone.
+ * @throws RemoteError `authorization/rejected` when no flow claims the key, an attempt is
+ *   running, or the store refuses the delete.
+ */
+@Remote async signOut(key: string): Promise<AuthorizationStatusView>
+```
+
+Types: [RemoteStream](typert.zh.md)
+
+Source: [`packages/api/settings-controller/src/authorization.ts`](../../packages/api/settings-controller/src/authorization.ts)
 
 <a id="ctxcredentials--credentialprovider-abstract-seam"></a>
 
@@ -262,140 +296,6 @@ Host service backing the generated `ctx.remote.credentials` namespace. It carrie
 
 Source: [`packages/api/settings-controller/src/credentials.ts`](../../packages/api/settings-controller/src/credentials.ts)
 
-<a id="ctxdeepseekaccount--deepseekaccount"></a>
-
-### `ctx.deepseekAccount` — `DeepSeekAccount`
-
-Account login, credentials, and client-safe Remote operations.
-
-```ts cordis-catalog
-/**
- * Read stored-account presence and the latest login attempt.
- * @returns a snapshot without credentials or PKCE secrets.
- */
-@Remote async getState(): Promise<AccountView>
-
-/**
- * Query Platform profile independently of wallet balances.
- * A ready result whose stable profile ID first becomes available or changes notifies identity-enabled watch
- * consumers, so they re-read getPlatformSession; repeated IDs stay silent.
- * @param client - identity of the requesting UI for this call.
- * @returns profile outcome, or null if signed out or the grant changed during the query.
- */
-@Remote async getProfile(client: AccountClientMetadata): Promise<AccountDetails['profile'] | null>
-
-/**
- * Query Platform recharge and bonus wallet balances independently of profile data.
- * @param client - identity of the requesting UI for this call.
- * @returns balance outcome, or null if signed out or the grant changed during the query.
- */
-@Remote getBalance(client: AccountClientMetadata): Promise<AccountDetails['balance'] | null>
-
-/**
- * Query unconsumed account notifications in server order without reading profile data.
- * @param client - identity of the requesting UI for this call; its language selects the server-authored message.
- * @returns notifications with their next query delay, or null if signed out or the grant changed during the query.
- */
-@Remote async getNotifications(client: AccountClientMetadata): Promise<AccountNotificationBatch | null>
-
-/**
- * Query localized content of a notification, including one already consumed.
- * @param id - notification whose content is requested.
- * @param client - identity of the requesting UI; its language selects the localized content.
- * @returns content without changing consumption, or null if signed out or the grant changed.
- */
-@Remote async getNotificationContent(id: AccountNotificationId, client: AccountClientMetadata): Promise<AccountNotification | null>
-
-/**
- * Report a notification interaction; the backend decides consumption.
- * @param id - notification the user interacted with.
- * @param event - displayed frame, non-dismiss action click, or explicit dismissal.
- * @param client - identity of the requesting UI for this call.
- * @returns true once the server accepts the event; false if signed out or credentials changed during the call.
- */
-@Remote async reportNotificationEvent(id: AccountNotificationId, event: AccountNotificationEvent, client: AccountClientMetadata): Promise<boolean>
-
-/**
- * Remove an inference-rejected token only while it still matches the stored login.
- * @param token - token captured by the rejected inference request.
- * @returns after matching credentials are removed and the expiry notification is emitted.
- */
-async rejectToken(token: string): Promise<void>
-
-/**
- * Read existing login identity without creating a device or returning credentials.
- * @returns optional device/account identifiers and the provider's OS version string.
- */
-async getDeviceIdentity(): Promise<{ deviceId?: string; userId?: AccountUserId; osVersion: string }>
-
-/**
- * Read credentials for the configured embedded-page origin, bound to their account environment, and
- * pair them with the account ID from the last successful profile read; no profile request is made.
- * @returns a Host-only snapshot, or null while signed out or when the credential changed during the read.
- */
-async getPlatformSession(): Promise<PlatformSession | null>
-
-/**
- * Resolve a credential only for the inference origin allowed by the provider.
- * @param url - actual request destination or API base URL.
- * @returns stored token, or undefined for other origins or a signed-out account.
- */
-async resolveToken(url: string): Promise<string | undefined>
-
-/**
- * Join an active attempt or start browser authorization.
- * @param client - identity of the requesting UI; a new attempt captures it, and joining retains the original attempt's identity.
- * @param callbackOrigin - browser-accessible loopback HTTP origin, including any SSH local port.
- * @param loginSource - initiating UI, used to return from a failed exchange.
- * @returns the initial snapshot without waiting for browser approval.
- */
-@Remote async startSignIn(client: AccountClientMetadata, callbackOrigin: string, loginSource: 'web' | 'desktop'): Promise<AccountView>
-
-/**
- * Cancel only the named attempt; committing attempts settle before returning.
- * @param attemptId - attempt identity from this Host.
- * @returns state after cancellation or an already-started commit.
- */
-@Remote async cancelSignIn(attemptId: SignInAttemptId): Promise<AccountView>
-
-/**
- * Remove the local grant while retaining API keys; the provider revokes it in the background.
- * @param client - identity of the requesting UI, captured for the background revocation retries.
- * @returns the signed-out state after local removal; remote failures never restore the grant.
- */
-@Remote signOut(client: AccountClientMetadata): Promise<AccountView>
-
-/**
- * Inspect running work before sign-out.
- * @returns whether a running task's latest request uses the account route; false when the optional agents service is absent.
- */
-@Remote hasRunningAccountTasks(): boolean
-
-/**
- * Subscribe to live credential expiry without replay.
- * @param signal - subscription lifetime; provider disposal also ends it.
- * @returns expiry notifications emitted during the subscription.
- */
-@Remote({ mode: 'stream' }) async *watchExpiry(signal: AbortSignal): AsyncIterable<'session-expired'>
-
-/**
- * Subscribe to ordered updates including a complete initial snapshot.
- * @param signal - subscription lifetime; ending it never cancels login.
- * @param includeIdentityChanges - also notify when cached Platform identity changes; defaults to false.
- * @returns complete state with snapshot or credentials-changed event type; credential changes take priority when updates coalesce.
- */
-watch(signal: AbortSignal, includeIdentityChanges: boolean = false): AsyncIterable<AccountUpdate>
-
-/**
- * Stream account state without the Host-only identity subscription option.
- * @param signal - subscription lifetime.
- * @returns initial state, login progress, and credential-change updates.
- */
-@Remote({ name: 'watch', mode: 'stream' }) watchState(signal: AbortSignal): AsyncIterable<AccountUpdate>
-```
-
-Source: [`packages/credentials/deepseek-account/src/index.ts`](../../packages/credentials/deepseek-account/src/index.ts)
-
 <a id="authorization-events"></a>
 
 ### `authorization/*` events
@@ -466,57 +366,4 @@ Committed change to a provider-managed credential source: a `set`, an `unset`, o
 ```
 
 Source: [`packages/credentials/credentials/src/types.ts`](../../packages/credentials/credentials/src/types.ts)
-
-<a id="deepseek-account-events"></a>
-
-### `deepseek-account/*` events
-
-<a id="deepseek-accountmodel-sign-in-required--emit"></a>
-
-#### `deepseek-account/model-sign-in-required` — emit
-
-An account model request requires the user to sign in.
-
-```ts cordis-catalog
-/** An account model request requires the user to sign in.
- * @mode emit
- */
-'deepseek-account/model-sign-in-required'(): void
-```
-
-Source: [`packages/credentials/deepseek-account/src/types.ts`](../../packages/credentials/deepseek-account/src/types.ts)
-
-<a id="deepseek-accountsession-expired--emit"></a>
-
-#### `deepseek-account/session-expired` — emit
-
-Server rejection removed the current account credential; this notification is not replayed.
-
-```ts cordis-catalog
-/** Server rejection removed the current account credential; this notification is not replayed.
- * @mode emit
- */
-'deepseek-account/session-expired'(): void
-```
-
-Source: [`packages/credentials/deepseek-account/src/types.ts`](../../packages/credentials/deepseek-account/src/types.ts)
-
-<a id="deepseek-accountsigned-out--emit"></a>
-
-#### `deepseek-account/signed-out` — emit
-
-Local grant removal has completed.
-
-```ts cordis-catalog
-/** Local grant removal has completed.
- * @mode emit
- */
-'deepseek-account/signed-out'(): void
-```
-
-Source: [`packages/credentials/deepseek-account/src/index.ts`](../../packages/credentials/deepseek-account/src/index.ts)
 <!-- END GENERATED cordis-surface -->
-
-账号服务定义提供 getState、getProfile、getBalance、getNotifications、getNotificationContent、reportNotificationEvent、startSignIn、cancelSignIn、signOut、watch 及仅限 Host 的 resolveToken 和 getPlatformSession。平台提供者使用 AuthorizationFlow 和私有 GrantRecord 实现这些操作。AccountView 区分本地存在与服务器验证；尝试 ID 将取消绑定到单次本地流程。AccountUpdate 的 state 携带完整 AccountView，type 为 snapshot 时表示首次或进度更新，为 credentials-changed 时表示凭据写入或删除。待发送的凭据变化优先于进度更新。参见[账号包](../../packages/credentials/deepseek-account/README.zh.md)。
-
-`AccountClientMetadata` 携带调用方 `DSH_CLIENT_VERSION` 提供的 `version`、当前界面 `locale`，以及操作发起时采样的 `timezoneOffsetSeconds`。偏移为本地时间减 UTC 的秒数：UTC+8 对应 `28800`。其中不含凭证。登录申请在兑换及取消期间保留发起时的元数据；退出操作为撤销重试保留其元数据。

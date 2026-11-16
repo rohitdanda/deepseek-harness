@@ -1,4 +1,4 @@
-/** Successful Session translations survive remounts and restarts without another provider query. */
+/** Successful Session translations survive remounts and restarts without another model request. */
 import { pluginRecordOf, type SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { appendFile, readFile, writeFile } from 'node:fs/promises'
 import type { ServerResponse } from 'node:http'
@@ -18,12 +18,12 @@ afterEach(async () => {
   if (failures.length > 0) throw new AggregateError(failures, 'Translation storage fixture teardown failed')
 })
 
-const identity: TranslationIdentity = { provider: 'bing', text: 'Original paragraph', sourceLanguage: 'auto', targetLanguage: 'zh', recipe: 'fixture-recipe' }
+const identity: TranslationIdentity = { provider: 'deepseek-official', text: 'Original paragraph', sourceLanguage: 'auto', targetLanguage: 'zh', recipe: 'fixture-recipe' }
 const requests = (events: readonly SessionEvent[]) => events.filter(event => pluginRecordOf(event)?.type === 'plugin:translator/request')
 const results = (events: readonly SessionEvent[]) => events.filter(event => pluginRecordOf(event)?.type === 'plugin:translator/result')
 
 describe('durable translation results', () => {
-  it.each(['bing', 'google'] as const)('reuses a %s result after a complete Host restart with zero new HTTP', async (provider) => {
+  it.each(['deepseek-official'] as const)('reuses a %s result after a complete Host restart with zero new HTTP', async (provider) => {
     const b = await storageFixture(cleanups), original = await b.createSession()
     const spec = () => b.ctx.translator.resolve({ text: 'Original paragraph', targetLanguage: 'zh', provider, sessionId: original.id })
     expect(await b.ctx.translator.translate(spec())).toBe('Stored translation')
@@ -123,11 +123,12 @@ describe('durable translation results', () => {
 
   it('retains an unmatched failed request and permits a successful retry', async () => {
     let fail = true
-    const b = await storageFixture(cleanups, { reply(call, response) {
-      if (fail) { response.writeHead(503); response.end() } else storageReply(call, response)
+    const b = await storageFixture(cleanups, { responseStatus: () => fail ? 503 : 200, reply(call, response) {
+      if (fail) response.end('{}')
+      else storageReply(call, response)
     } })
     const original = await b.createSession(), spec = b.ctx.translator.resolve({ text: 'Original paragraph', targetLanguage: 'zh', sessionId: original.id })
-    await expect(b.ctx.translator.translate(spec)).rejects.toMatchObject({ code: 'TRANSLATION_HTTP_ERROR' })
+    await expect(b.ctx.translator.translate(spec)).rejects.toMatchObject({ code: 'TRANSLATION_REQUEST_FAILED' })
     expect(requests(await b.readEvents(original.id))).toHaveLength(1)
     expect(results(await b.readEvents(original.id))).toEqual([])
     fail = false
@@ -153,32 +154,20 @@ describe('durable translation results', () => {
     } finally { held?.destroy(); await Promise.allSettled([pending]) }
   })
 
-  it('separates provider, target, source, text, and effective endpoint recipes', async () => {
+  it('separates provider, target, source, text, and output-token recipes', async () => {
     const b = await storageFixture(cleanups), original = await b.createSession()
     const base = { text: 'Original paragraph', targetLanguage: 'zh', sessionId: original.id }
-    for (const selection of [base, { ...base, provider: 'google' as const }, { ...base, targetLanguage: 'ja' },
+    for (const selection of [base, { ...base, targetLanguage: 'ja' },
       { ...base, sourceLanguage: 'en' }, { ...base, text: 'Different paragraph' }]) {
       await b.ctx.translator.translate(b.ctx.translator.resolve(selection))
     }
     const entry = [...b.ctx.loader.entries()].find(row => row.options.id === 'translator')
     if (entry === undefined) throw new Error('Missing translator Loader row')
-    await entry.update({ config: { ...b.config, bingEndpoint: b.config.bingEndpoint + '-alternate' } })
+    await entry.update({ config: { ...b.config, deepseekMaxOutputTokens: 16 } })
     await b.ctx.loader.await()
     await b.ctx.translator.translate(b.ctx.translator.resolve(base))
-    expect(b.requests).toHaveLength(6)
-    expect(new Set(requests(await b.readEvents(original.id)).map(event => (event.data as { recipe: string }).recipe)).size).toBe(3)
-  })
-
-  it('does not change cache identity for provider-owned endpoint query parameters', async () => {
-    const b = await storageFixture(cleanups), original = await b.createSession()
-    const base = { text: 'Original paragraph', targetLanguage: 'zh', sessionId: original.id }
-    await b.ctx.translator.translate(b.ctx.translator.resolve(base))
-    const entry = [...b.ctx.loader.entries()].find(row => row.options.id === 'translator')
-    if (entry === undefined) throw new Error('Missing translator Loader row')
-    await entry.update({ config: { ...b.config, bingEndpoint: b.config.bingEndpoint + '?from=legacy&to=legacy&isEnterpriseClient=true' } })
-    await b.ctx.loader.await()
-    expect(await b.ctx.translator.translate(b.ctx.translator.resolve(base))).toBe('Stored translation')
-    expect(b.requests).toHaveLength(1)
+    expect(b.requests).toHaveLength(5)
+    expect(new Set(requests(await b.readEvents(original.id)).map(event => (event.data as { recipe: string }).recipe)).size).toBe(2)
   })
 })
 

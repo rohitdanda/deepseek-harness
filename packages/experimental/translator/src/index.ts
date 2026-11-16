@@ -1,39 +1,30 @@
-/** Anonymous text translation with optional durable provider-independent Session results. */
+/** Text translation through native DeepSeek model routes with durable Session results. */
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { TranslationProvider, TranslationRequest, TranslationSpec } from './types.ts'
 import { TranslationError } from './error.ts'
-import { anonymousRecipe, translateText } from './provider.ts'
 import { TranslationStorage } from './storage.ts'
 import { addAbortListener } from 'node:events'
-import { assertNever } from '@deepseek-ai/dsh-util-values'
-import { availablePaidProviders, deepseekRecipe, translateWithDeepSeek } from './deepseek.ts'
+import { availableNativeProviders, deepseekRecipe, translateWithDeepSeek } from './deepseek.ts'
 import type { TranslationIdentity } from './types.ts'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 export type * from './types.ts'
 export { TranslationError } from './error.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Experimental text translator with optional durable Session reuse. */
+    /** Experimental text translator with durable Session reuse. */
     translator: Translator
   }
 }
 
-/** Routing and bounds for anonymous requests and independent native model translation. */
+/** Routing and bounds for independent native model translation. */
 export interface Config {
   /** Provider selected when a consumer omits it. */
   provider: TranslationProvider
-  /** Google-compatible anonymous translation endpoint. */
-  googleEndpoint: string
-  /** Bing-compatible Microsoft Edge browser translation endpoint. */
-  bingEndpoint: string
-  /** Deadline covering the request and complete response body, in milliseconds. */
-  timeoutMs: number
   /** Maximum UTF-16 code units per request; at least two to admit one supplementary-plane character. */
   maxTextChars: number
-  /** Maximum anonymous JSON-body bytes or paid assembled UTF-8 translation bytes. */
+  /** Maximum assembled UTF-8 translation bytes. */
   maxResponseBytes: number
   /** Deadline for native admission and complete translation output, in milliseconds. */
   deepseekTimeoutMs: number
@@ -41,21 +32,10 @@ export interface Config {
   deepseekMaxOutputTokens: number
 }
 
-function endpoint(value: string): string {
-  const url = new URL(value)
-  if (!['http:', 'https:'].includes(url.protocol) || url.username !== '' || url.password !== '' || url.hash !== '') {
-    throw new Error('Translation endpoint must be an HTTP(S) URL without credentials or a fragment')
-  }
-  return url.href
-}
-
 /** One Host service with explicit routing, cancellation and quiescent unload. */
 export default class Translator extends Service {
   static Config = z.object({
-    provider: z.union(['google', 'bing', 'deepseek-account', 'deepseek-official'] as const).default('bing'),
-    googleEndpoint: z.transform(z.string(), endpoint).default('https://translate.googleapis.com/translate_a/single'),
-    bingEndpoint: z.transform(z.string(), endpoint).default('https://edge.microsoft.com/translate/translatetext'),
-    timeoutMs: z.natural().min(1).max(2_147_483_647).default(10_000),
+    provider: z.union(['deepseek-official'] as const).default('deepseek-official'),
     maxTextChars: z.natural().min(2).default(4_000),
     maxResponseBytes: z.natural().min(1).default(1024 * 1024),
     deepseekTimeoutMs: z.natural().min(1).max(2_147_483_647).default(60_000),
@@ -81,11 +61,11 @@ export default class Translator extends Service {
   /**
    * Inspect eligible native routes without inference; saved results remain readable for unavailable routes.
    * @param signal - optional caller cancellation, combined with service disposal.
-   * @returns anonymous choices followed by eligible explicitly selected paid routes.
+   * @returns eligible native routes, possibly none.
    */
   async availableProviders(signal?: AbortSignal): Promise<readonly TranslationProvider[]> {
     const combined = this.signal(signal)
-    const task = Promise.resolve().then(() => availablePaidProviders(this.ctx, this.config, combined, (work) => { this.track(work) }))
+    const task = Promise.resolve().then(() => availableNativeProviders(this.ctx, this.config, combined, (work) => { this.track(work) }))
     this.track(task)
     return task
   }
@@ -99,62 +79,26 @@ export default class Translator extends Service {
     this.lifetime.signal.throwIfAborted()
     this.assertTextLimit(request.text)
     const provider = request.provider ?? this.config.provider
-    const base = { text: request.text, targetLanguage: request.targetLanguage, sourceLanguage: request.sourceLanguage ?? 'auto' }
-    switch (provider) {
-      case 'google':
-      case 'bing': return { ...base, provider, ...request.sessionId === undefined ? {} : { sessionId: request.sessionId } }
-      case 'deepseek-account':
-      case 'deepseek-official': {
-        if (request.sessionId === undefined) throw new TranslationError('TRANSLATION_SESSION_REQUIRED', 'Paid translation requires a durable Session')
-        return { ...base, provider, sessionId: request.sessionId }
-      }
-      /* v8 ignore next -- TranslationProvider is a closed union validated by Config or Remote request admission. */
-      default: return assertNever(provider)
-    }
+    if (request.sessionId === undefined) throw new TranslationError('TRANSLATION_SESSION_REQUIRED', 'Translation requires a durable Session')
+    return { text: request.text, targetLanguage: request.targetLanguage, sourceLanguage: request.sourceLanguage ?? 'auto',
+      provider, sessionId: request.sessionId }
   }
 
   /**
-   * Translate one resolved specification; the selected provider receives its text.
+   * Translate one resolved specification; the selected native route receives its text.
    * @param spec - complete routing and language choices from `resolve()`.
    * @param signal - optional caller cancellation, combined with service disposal.
-   * @returns translated plain text, durably retained before return when a Session is supplied.
-   * An uncached supplied Session must be active; otherwise rejects with `TRANSLATION_SESSION_INACTIVE` before dispatch.
+   * @returns translated plain text, durably retained before return.
+   * An uncached Session must be active; otherwise rejects with `TRANSLATION_SESSION_INACTIVE` before dispatch.
    * Rejects provider/storage/limit failures and preserves cancellation reasons.
    */
   async translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string> {
     this.assertTextLimit(spec.text)
     const combined = this.signal(signal)
     const identity: TranslationIdentity = { provider: spec.provider, text: spec.text, sourceLanguage: spec.sourceLanguage,
-      targetLanguage: spec.targetLanguage, recipe: spec.provider === 'google' || spec.provider === 'bing'
-        ? anonymousRecipe(spec.provider, this.config) : deepseekRecipe(this.config) }
-    const inSession = (id: SessionId) => this.storage.run(id, identity, combined, async (log) => {
-      switch (spec.provider) {
-        case 'deepseek-account':
-        case 'deepseek-official':
-          return translateWithDeepSeek(this.ctx, spec, this.config, combined, (work) => { this.track(work) }, log, identity)
-        case 'google':
-        case 'bing': {
-          const requestSeq = await log.request(identity)
-          combined.throwIfAborted()
-          const text = await translateText(spec, this.config, combined)
-          combined.throwIfAborted()
-          await log.result(requestSeq, text)
-          return text
-        }
-        /* v8 ignore next -- TranslationSpec has a closed provider union resolved before same-process dispatch. */
-        default: return assertNever(spec)
-      }
-    })
-    const task = Promise.resolve().then(() => {
-      switch (spec.provider) {
-        case 'google':
-        case 'bing': return spec.sessionId === undefined ? translateText(spec, this.config, combined) : inSession(spec.sessionId)
-        case 'deepseek-account':
-        case 'deepseek-official': return inSession(spec.sessionId)
-        /* v8 ignore next -- TranslationSpec has a closed provider union resolved before same-process dispatch. */
-        default: return assertNever(spec)
-      }
-    })
+      targetLanguage: spec.targetLanguage, recipe: deepseekRecipe(this.config) }
+    const task = Promise.resolve().then(() => this.storage.run(spec.sessionId, identity, combined, log =>
+      translateWithDeepSeek(this.ctx, spec, this.config, combined, (work) => { this.track(work) }, log, identity)))
     this.track(task)
     return await new Promise<string>((resolve, reject) => {
       const listener = addAbortListener(combined, () => {

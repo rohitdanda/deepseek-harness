@@ -351,7 +351,7 @@ describe('scenario: images ride an accepting command through the real pipeline',
 })
 
 describe('scenario H: the command chip deletes whole', () => {
-  it.each(['goal', '目标', 'plan', '计划', 'feedback', '反馈'])('keeps /%s claimed until the chip itself is deleted', async (name) => {
+  it.each(['goal', '目标', 'plan', '计划'])('keeps /%s claimed until the chip itself is deleted', async (name) => {
     const { source } = commandSource([{ name, description: name, input: { hint: '目标内容' } }],
       () => Promise.resolve({ kind: 'success' }))
     const b = await scopedBench((triggers) => { triggers.registerSource(source) })

@@ -550,13 +550,13 @@ describe('SDK query dispatch', () => {
     expect(agent.session.snapshotEvents().map(event => event.type)).toEqual(['command/run', 'command/done'])
   })
 
-  it.each(['/feedback inspect', '/model', '/file', '/export', '/permission', ' \n/权限\t '])('preserves existing prompt behavior for unimplemented input %s', async (text) => {
+  it.each(['/deploy inspect', '/model', '/file', '/export', '/permission', ' \n/权限\t '])('preserves existing prompt behavior for unimplemented input %s', async (text) => {
     const h = await setup()
     const model = new TextModel()
     h.ctx.effect(() => h.ctx.llm.registerAdapter(['query-model'], model))
     await h.server.initialize({ cwd: process.cwd(), provider: 'query-model', model: 'model' })
     const handler = vi.fn(() => ({ kind: 'success' as const }))
-    h.ctx.effect(() => h.ctx.commands.register({ name: 'feedback', description: 'Feedback', input: { hint: 'Task' }, handler }))
+    h.ctx.effect(() => h.ctx.commands.register({ name: 'deploy', description: 'Deploy', input: { hint: 'Task' }, handler }))
     h.ctx.effect(() => h.ctx.commands.register({ name: 'permission', definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-permission-presets'), description: 'Permission', input: { hint: 'Preset' }, handler }))
     await expect(h.server.query({ sessionId: brandString<SessionId>('q'), contentBlocks: [{ type: 'text', text }] })).resolves.toMatchObject({ kind: 'prompt' })
     await h.server.wait({ sessionId: 'q' })

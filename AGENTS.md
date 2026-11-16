@@ -54,8 +54,6 @@ packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/
   spill/                output spill
   storage/              non-session storage
   workspace/            workspace entities
-  feedback/             human feedback
-  identity/             anonymous identity
   settings/             user settings
   credentials/          credentials/authorization
   acp/                  automation-only ACP

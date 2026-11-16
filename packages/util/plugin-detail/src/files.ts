@@ -1,11 +1,10 @@
 /**
- * Read-only file sources for plugin detail documents: a local package directory and published npm package versions on
- * public file CDNs, with bounded HTTP reads. Sources keep no state between calls.
+ * Read-only file sources for plugin detail documents: a local package directory, and bounded HTTP reads for sources
+ * built on them. Sources keep no state between calls.
  */
 import { lstat, readdir, readFile, realpath } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
-import type { DetailFailureReason, NpmFileSource } from './types.ts'
-
+import type { DetailFailureReason } from './types.ts'
 
 /** A read that must not fall back: the source exists but refused, failed, or exceeded a limit. */
 export class DetailFailure extends Error {
@@ -164,7 +163,7 @@ export interface RemoteFileOptions {
 /** One HTTP answer: the body of a 2xx response, or the status of any other. */
 export type FetchedBody = { readonly ok: true; readonly bytes: Uint8Array } | { readonly ok: false; readonly status: number }
 
-/** Redirects followed within one origin, such as a renamed repository's raw files; a redirect to another origin is not followed. */
+/** Redirects followed within one origin, such as a renamed repository's files; a redirect to another origin is not followed. */
 const MAX_REDIRECTS = 3
 
 /**
@@ -217,67 +216,4 @@ export async function fetchBody(url: string, maxBytes: number, signal: AbortSign
     throw new DetailFailure('network', `Could not read ${url}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
   }
   return { ok: true, bytes: Buffer.concat(chunks) }
-}
-
-/** Every npm file CDN, in the default order. */
-export const NPM_FILE_SOURCES = ['jsdelivr', 'unpkg', 'npmmirror'] as const satisfies readonly NpmFileSource[]
-
-/**
- * Order the configured npm file CDNs by a caller's preference: the preferred ones that are configured, in the preferred
- * order, then the other configured ones in configured order. A preferred CDN that is not configured is not asked.
- * @param configured - the configured CDNs in order.
- * @param preferred - CDNs to ask first, such as those a Client measured as fastest; names other than CDNs are ignored.
- * @returns the CDNs to ask, first to last.
- */
-export function npmFileSourceOrder(configured: readonly NpmFileSource[], preferred: readonly string[] = []): NpmFileSource[] {
-  const first = configured.filter(source => preferred.includes(source)).sort((a, b) => preferred.indexOf(a) - preferred.indexOf(b))
-  return [...first, ...configured.filter(source => !first.includes(source))]
-}
-
-/**
- * Percent-encode each segment of a `/`-separated path for a URL.
- * @param path - the path.
- * @returns the encoded path.
- */
-export function encodePath(path: string): string {
-  return path.split('/').map(encodeURIComponent).join('/')
-}
-
-const NPM_FILE_URLS: Record<NpmFileSource, (name: string, version: string, path: string) => string> = {
-  jsdelivr: (name, version, path) => `https://cdn.jsdelivr.net/npm/${name}@${version}/${encodePath(path)}`,
-  unpkg: (name, version, path) => `https://unpkg.com/${name}@${version}/${encodePath(path)}`,
-  npmmirror: (name, version, path) => `https://registry.npmmirror.com/${name}/${version}/files/${encodePath(path)}`,
-}
-
-/**
- * Files of one published npm package version, read from public file CDNs in order. A 404 from a CDN means the package
- * does not contain the file; a network failure or another status asks the next CDN.
- * @param name - package name.
- * @param version - exact version.
- * @param sources - the CDNs to ask, first to last; never empty.
- * @param options - deadline and service lifetime.
- * @returns the files.
- */
-export function npmFiles(name: string, version: string, sources: readonly NpmFileSource[], options: RemoteFileOptions): DetailFiles {
-  const files: DetailFiles = {
-    key: `npm:${name}@${version}`,
-    async read(path, maxBytes, signal) {
-      const failures: string[] = []
-      for (const source of sources) {
-        const url = NPM_FILE_URLS[source](name, version, path)
-        try {
-          const body = await fetchBody(url, maxBytes, signal, options)
-          if (body.ok) return body.bytes
-          if (body.status === 404) return undefined
-          failures.push(`${url}: HTTP ${String(body.status)}`)
-        } catch (error) {
-          if (!(error instanceof DetailFailure) || error.reason !== 'network') throw error
-          failures.push(error.message)
-        }
-      }
-      throw new DetailFailure('network', failures.join('; '))
-    },
-    readme: (dir, maxBytes, signal) => readmeByName((path, max, readSignal) => files.read(path, max, readSignal), dir, maxBytes, signal),
-  }
-  return files
 }

@@ -1,4 +1,3 @@
-import { expectDesktopArchive } from './desktop-archive-workflow-test.ts'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import yaml from 'js-yaml'
@@ -25,18 +24,11 @@ describe.each(['arm64', 'x64'])('macOS %s packaging', (arch) => {
     }>
   }
 
-  it('archives using the same persistent pnpm store as packaging', () => {
-    const cache = (job: string) => workflow.jobs[job]!.steps.find(step => step.name === 'Configure persistent package caches')
-    expect(cache('upload-artifact')).toEqual(cache('package'))
-    expect(cache('upload-artifact')?.run).toContain('PNPM_CONFIG_STORE_DIR=')
-  })
-
   it('confines signed Mac packaging to manual dispatch and a dedicated Apple Silicon runner', () => {
     expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch'])
     expect(workflow.jobs.package!.env.PACKAGE_VERSION_MODE).toBe("${{ inputs.version_mode == 'follow-dsh' && 'product' || inputs.version_mode == 'build-number' && 'auto' || inputs.version_mode }}")
     expect(workflow.on.workflow_dispatch).toMatchObject({ inputs: { version_mode: { default: 'default', options: ['default', 'follow-dsh', 'build-number', 'manual'] } } })
     expect(workflow.jobs.package).not.toHaveProperty('name')
-    expect(workflow.on.workflow_dispatch).toMatchObject({ inputs: { test_release_id: { type: 'string', default: '', required: false } } })
     expect(workflow.on.workflow_dispatch).not.toHaveProperty('inputs.publish')
     expect(workflow.permissions).toEqual({ contents: 'read' })
     expect(workflow.concurrency).toEqual({ group: 'macos-desktop-package', 'cancel-in-progress': false })
@@ -44,21 +36,23 @@ describe.each(['arm64', 'x64'])('macOS %s packaging', (arch) => {
     const steps = workflow.jobs.package!.steps
     expect(steps.find(step => step.id === 'checkout')?.with).toMatchObject({ 'persist-credentials': false, clean: true })
     for (const step of steps) expect(step.run ?? '').not.toContain('${{ inputs.')
+    expect(Object.keys(workflow.jobs)).toEqual(['package'])
     const uploads = steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'))
-    expect(uploads).toHaveLength(1)
-    const archive = workflow.jobs['upload-artifact']!
-    expect(archive['runs-on']).toEqual(['self-hosted', '${{ needs.package.outputs.runner }}'])
-    const installer = archive.steps.find(step => step.uses?.startsWith('actions/upload-artifact@'))!
-    expect(uploads[0]?.if).toBe("always() && steps.checkout.outcome == 'success'")
-    expect(installer.if).toBe("${{ !cancelled() && steps.archive.outcome == 'success' }}")
-    expect(installer.with?.path).toBe('${{ steps.archive.outputs.dmg-path }}')
-    expect(installer.with).toMatchObject({ archive: false, overwrite: true, name: '${{ steps.archive.outputs.dmg-name }}' })
+    expect(uploads).toHaveLength(2)
+    const [installer, diagnostics] = uploads
+    expect(installer?.if).toBeUndefined()
+    expect(installer?.with).toMatchObject({
+      name: '${{ steps.installer.outputs.name }}', path: '${{ steps.installer.outputs.path }}',
+      archive: false, overwrite: true, 'if-no-files-found': 'error', 'retention-days': 14,
+    })
+    expect(steps.indexOf(installer!)).toBeGreaterThan(steps.findIndex(step => step.name === 'Build signed installers'))
+    expect(diagnostics?.if).toBe("always() && steps.checkout.outcome == 'success'")
   })
 
   it('defaults to notarization and labels the explicit debugging option', () => {
     expect(workflow.on.workflow_dispatch).toMatchObject({ inputs: { skip_notarization: {
       type: 'boolean', default: false,
-      description: '跳过公证和 stapling：仅限内部调试，禁止发布到 test / production 或用于自动更新；需要发布请勿勾选',
+      description: '跳过公证和 stapling：仅限内部调试，不可对外分发；需要分发请勿勾选',
     } } })
     const steps = workflow.jobs.package!.steps
     expect(steps.filter(step => step.run?.includes('args+=(--skip-notarization)'))).toHaveLength(2)
@@ -96,24 +90,17 @@ describe.each(['arm64', 'x64'])('macOS %s packaging', (arch) => {
   })
 
   it('passes the same target to preparation, packaging and retention', () => {
-    const archive = workflow.jobs['upload-artifact']!
-    const uploads = expectDesktopArchive(archive, 3)
-    expect(archive.steps.find(step => step.id === 'archive')?.run).toContain('archive-desktop-ci.ts --split-macos')
-    for (const [index, kind] of ['dmg', 'update', 'metadata'].entries()) {
-      expect(uploads[index]?.with).toMatchObject({
-        name: '${{ steps.archive.outputs.' + kind + '-name }}',
-        path: '${{ steps.archive.outputs.' + (kind + '-path') + ' }}',
-        archive: false, overwrite: true, 'if-no-files-found': 'error', 'retention-days': 14,
-      })
-      expect(uploads[index]?.if).toBe("${{ !cancelled() && steps.archive.outcome == 'success' }}")
-    }
+    const installer = workflow.jobs.package!.steps.find(step => step.id === 'installer')!
+    expect(installer.env).toEqual({
+      PACKAGE_ARTIFACTS: '${{ steps.settings.outputs.artifacts }}', PACKAGE_VERSION: '${{ steps.settings.outputs.version }}',
+    })
+    expect(installer.run).toContain(`apps/desktop/.desktop-build/targets/mac-${arch}/"$PACKAGE_ARTIFACTS"/deepseek-harness-"$PACKAGE_VERSION"-mac-${arch}*.dmg`)
     const job = workflow.jobs.package!
     expect(job.env.DSH_DESKTOP_TARGET_PLATFORM).toBe('darwin')
     expect(job.env.DSH_DESKTOP_TARGET_ARCH).toBe(arch)
     const builds = job.steps.filter(step => step.run?.includes('pnpm run package:desktop:mac:'))
     expect(builds).toHaveLength(2)
     for (const step of builds) expect(step.run).toContain(`package:desktop:mac:${arch}`)
-    expect(archive.env.DESKTOP_ARCHIVE_NAME).toBe('macos-' + arch + '-${{ needs.package.outputs.mode }}-${{ needs.package.outputs.version }}-${{ github.run_id }}-${{ needs.package.outputs.attempt }}.zip')
     if (arch === 'x64') {
       const rosetta = job.steps.findIndex(step => step.run === 'arch -x86_64 /usr/bin/true')
       expect(rosetta).toBeGreaterThan(-1)

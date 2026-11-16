@@ -1,9 +1,9 @@
-/** Detail file sources: local package directories, bounded HTTP reads, and npm file CDNs. */
+/** Detail file sources: local package directories and bounded HTTP reads. */
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { DetailFailure, fetchBody, localFiles, npmFileSourceOrder, npmFiles, readmeByName, readmeName } from '../src/files.ts'
+import { fetchBody, localFiles, readmeByName, readmeName } from '../src/files.ts'
 
 /** Await a rejection that matches `fields` and whose message contains `message`. */
 async function expectRejection(promise: Promise<unknown>, fields: object, message: string): Promise<void> {
@@ -123,38 +123,8 @@ it('follows redirects within the origin only', async () => {
   expect(await fetchBody('https://a.example/bare', 10, signal, options)).toEqual({ ok: false, status: 302 })
 })
 
-it('reads npm files from the CDNs in order, trusting a 404 and asking the next CDN after a failure', async () => {
-  const fetch = serve({
-    'https://cdn.jsdelivr.net/npm/@a/b@1.0.0/docs/A%20B.md': new Error('offline'),
-    'https://unpkg.com/@a/b@1.0.0/docs/A%20B.md': () => new Response('fail', { status: 502 }),
-    'https://registry.npmmirror.com/@a/b/1.0.0/files/docs/A%20B.md': () => new Response('# AB'),
-    'https://registry.npmmirror.com/@a/b/1.0.0/files/README.md': () => new Response('no', { status: 404 }),
-    'https://registry.npmmirror.com/@a/b/1.0.0/files/readme.md': () => new Response('# readme'),
-    'https://registry.npmmirror.com/@a/b/1.0.0/files/big.md': () => new Response('x'.repeat(20)),
-    'https://cdn.jsdelivr.net/npm/@a/b@1.0.0/down.md': new Error('offline'),
-  })
-  const files = npmFiles('@a/b', '1.0.0', ['jsdelivr', 'unpkg', 'npmmirror'], options)
-  expect(files.key).toBe('npm:@a/b@1.0.0')
-  expect(text(await files.read('docs/A B.md', 100, signal))).toBe('# AB')
-  const mirror = npmFiles('@a/b', '1.0.0', ['npmmirror'], options)
-  expect(await mirror.readme('', 100, signal)).toMatchObject({ path: 'readme.md' })
-  await expect(mirror.read('big.md', 10, signal)).rejects.toMatchObject({ reason: 'too-large' })
-  const failure = npmFiles('@a/b', '1.0.0', ['jsdelivr'], options).read('down.md', 10, signal)
-  await expect(failure).rejects.toBeInstanceOf(DetailFailure)
-  await expectRejection(failure, { reason: 'network' }, 'offline')
-  expect(fetch).toHaveBeenCalledTimes(7)
-})
-
 it('reads the first README name that exists', async () => {
   const read = (path: string) => Promise.resolve(path === 'd/readme.md' ? Buffer.from('r') : undefined)
   expect(await readmeByName(read, 'd', 10, signal)).toMatchObject({ path: 'd/readme.md' })
   expect(await readmeByName(read, 'd', 10, signal, ['README.md'])).toBeUndefined()
-})
-
-it('orders the configured npm CDNs by a preference, ignoring CDNs that are not configured', () => {
-  const all = ['jsdelivr', 'unpkg', 'npmmirror'] as const
-  expect(npmFileSourceOrder(all, ['npmmirror'])).toEqual(['npmmirror', 'jsdelivr', 'unpkg'])
-  expect(npmFileSourceOrder(all, ['unpkg', 'npmmirror'])).toEqual(['unpkg', 'npmmirror', 'jsdelivr'])
-  expect(npmFileSourceOrder(all)).toEqual(['jsdelivr', 'unpkg', 'npmmirror'])
-  expect(npmFileSourceOrder(['unpkg'], ['npmmirror', 'other'])).toEqual(['unpkg'])
 })

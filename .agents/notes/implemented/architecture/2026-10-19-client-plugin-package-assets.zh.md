@@ -48,7 +48,7 @@ plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale%402x-06738fa29b2f.p
 
 ### 门禁与迁移
 
-[`check-workspace-constraints`](../../../../scripts/check-workspace-constraints.ts) 要求声明导出时 `files` 含 `lib/assets`。[`verify-client-packages`](../../../../scripts/verify-client-packages.ts) 要求导出目标精确匹配，只允许动态 Web Client 包声明该导出，并要求导出与包内引用（import，以及其 Client 源码所 import 的样式表中的 `url()`）双向一致。[`verify-package-dependencies`](../../../../scripts/verify-package-dependencies.ts) 把 `./assets/*` 视为非代码导出。ui-settings-account 和 ui-chat 已迁移到包资源，ui-chat 的 tsdown 插件已删除。
+[`check-workspace-constraints`](../../../../scripts/check-workspace-constraints.ts) 要求声明导出时 `files` 含 `lib/assets`。[`verify-client-packages`](../../../../scripts/verify-client-packages.ts) 要求导出目标精确匹配，只允许动态 Web Client 包声明该导出，并要求导出与包内引用（import，以及其 Client 源码所 import 的样式表中的 `url()`）双向一致。[`verify-package-dependencies`](../../../../scripts/verify-package-dependencies.ts) 把 `./assets/*` 视为非代码导出。ui-chat 已迁移到包资源，其 tsdown 插件已删除。
 
 三方库自己加载的资源（PDF.js 的字体、cmap、wasm 和 worker）、插件元数据图标、详情文档图片，以及 static-linked 包，保留各自的交付方式。
 
@@ -74,7 +74,7 @@ plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale%402x-06738fa29b2f.p
 
 ## Consequences
 
-- ui-settings-account 的 `client.js` 为 214 KB，账户和 ui-chat 的 bundle 都不再含图片 data URL；图片显示时多一次同源请求，可能晚于布局出现。
+- ui-chat 的 bundle 不再含图片 data URL；图片显示时多一次同源请求，可能晚于布局出现。
 - `require.asset` 和 `require.async` 一样属于 bundle factory 契约；仓库外构建的包必须输出这个调用。WebWorker 预览在启动时为镜像里所有包资源创建 Blob URL，不论包是否启用，并在页面生命周期内保留。
 - Desktop 转发层把 `/plugins/` 的缓存头改写为 `no-store`，Desktop 每次显示都会重新读取资源。
 - Host 不比对文件内容与文件名中的 revision：原地修改 `lib/assets/` 下的文件会保留它的 immutable 缓存。这个目录只由构建写入。
@@ -89,4 +89,4 @@ plugins/@deepseek-ai/dsh-client-ui-chat/assets/running-whale%402x-06738fa29b2f.p
 - [assets.client.spec.ts](../../../../packages/client/modules/tests/assets.client.spec.ts) 覆盖媒体类型、revision、产出文件名和引用；[client-asset-types.spec.ts](../../../../scripts/client-asset-types.spec.ts) 保证类型根与类型表一致。
 - [client-bundle-css.spec.ts](../../../../scripts/client-bundle-css.spec.ts) 覆盖产出文件名、脚本和样式表文本中的解析调用、完整构建中它们的 CommonJS 渲染、保留的 `url()` 形式、每种构建拒绝、Node face 守卫、一次性构建的清理，以及 watch 重建保留旧文件；[loader.client.spec.ts](../../../../packages/client/modules/tests/loader.client.spec.ts) 覆盖默认解析和载体解析。
 - 各门禁的 spec 拒绝每种无效的 manifest 或引用形式；[node-half.client.spec.ts](../../../../packages/client/modules/tests/node-half.client.spec.ts) 覆盖条目重启后的声明更新、导出移动、client 声明的增减、未变化的重启既不发布也不读取 bundle，以及名为 `@scope/assets` 的包的分片。
-- [desktop-onboarding.e2e.ts](../../../../apps/web/tests/desktop-onboarding.e2e.ts) 和 [reasoning-preview.e2e.ts](../../../../apps/web/tests/reasoning-preview.e2e.ts) 断言包资源 URL，并在浏览器中解码这些图片；[preview-boot.e2e.ts](../../../../apps/web/tests/preview-boot.e2e.ts) 解码 WebWorker 预览解析为 Blob URL 的 ui-chat 遮罩图，运行时的 [package-assets.spec.ts](../../../../packages/experimental/webworker-runtime/tests/package-assets.spec.ts) 覆盖归档和解析。
+- [reasoning-preview.e2e.ts](../../../../apps/web/tests/reasoning-preview.e2e.ts) 断言包资源 URL，并在浏览器中解码这些图片；[preview-boot.e2e.ts](../../../../apps/web/tests/preview-boot.e2e.ts) 解码 WebWorker 预览解析为 Blob URL 的 ui-chat 遮罩图，运行时的 [package-assets.spec.ts](../../../../packages/experimental/webworker-runtime/tests/package-assets.spec.ts) 覆盖归档和解析。

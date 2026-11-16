@@ -1,7 +1,6 @@
 /**
  * Real Loader composition: the DeepSeek model routes, the web seam, and this plugin boot from a `cordis.yml`, so the
- * API-key and account endpoints and the key come from the route entries the Loader activated. Only the network and the account service
- * are stubbed.
+ * API-key endpoint and the key come from the route entry the Loader activated. Only the network is stubbed.
  */
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -10,10 +9,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModuleLoaderV2 } from '@deepseek-ai/cordis-plugin-loader'
 import { boot } from '@deepseek-ai/dsh-app-boot'
-import type { DeepSeekAccount } from '@deepseek-ai/dsh-deepseek-account'
 import { createLaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
-import * as Account from '@deepseek-ai/dsh-llm-deepseek-account'
 import * as Official from '@deepseek-ai/dsh-llm-deepseek-api-key'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import * as webApiPlugin from '@deepseek-ai/dsh-web-deepseek-api'
@@ -28,7 +25,6 @@ afterEach(async () => {
 const MODULES = new Map<string, unknown>([
   ['@deepseek-ai/dsh-llm', LlmRuntime],
   ['@deepseek-ai/dsh-llm-deepseek-api-key', Official],
-  ['@deepseek-ai/dsh-llm-deepseek-account', Account],
   ['@deepseek-ai/dsh-web', WebRuntime],
   ['@deepseek-ai/dsh-web-deepseek-api', webApiPlugin],
 ])
@@ -37,7 +33,6 @@ const MODULES = new Map<string, unknown>([
 interface Sent {
   endpoint: string
   authorization: string | null
-  token: string | null
 }
 
 /**
@@ -65,7 +60,6 @@ async function bootComposition(web: Record<string, unknown>, environment: Record
   await writeFile(configPath, JSON.stringify([
     { id: 'llm', name: '@deepseek-ai/dsh-llm' },
     { id: 'llm-deepseek', name: '@deepseek-ai/dsh-llm-deepseek-api-key' },
-    { id: 'llm-deepseek-account', name: '@deepseek-ai/dsh-llm-deepseek-account' },
     { id: 'web', name: '@deepseek-ai/dsh-web', config: { searchProvider: 'deepseek-search-api', fetchProvider: 'deepseek-fetch-api' } },
     { id: 'web-deepseek-api', name: '@deepseek-ai/dsh-web-deepseek-api', config: web },
   ]))
@@ -83,13 +77,12 @@ async function bootComposition(web: Record<string, unknown>, environment: Record
     }
     host.loader.internal = modules
     host.provide('launchEnvironment', createLaunchEnvironmentSnapshot([{ source: 'process', values: environment }]))
-    host.provide('deepseekAccount', { resolveToken: async () => 'account-token' } as Pick<DeepSeekAccount, 'resolveToken'> as DeepSeekAccount)
   })
   cleanups.push(async () => { await ctx.fiber.dispose() })
   const sent = (): Sent[] => fetchMock.mock.calls.flatMap(([endpoint, init]) => {
     if (!endpoint.includes('/v1/tools/')) return []
     const headers = new Headers(init?.headers)
-    return [{ endpoint, authorization: headers.get('authorization'), token: headers.get('x-dsh-auth-token') }]
+    return [{ endpoint, authorization: headers.get('authorization') }]
   })
   return { ctx, sent }
 }
@@ -110,8 +103,8 @@ describe('web-deepseek-api over the real model routes', () => {
     await ctx.web.search({ query: 'q' })
     await ctx.web.fetch({ url: 'https://example.test/' })
     expect(sent()).toEqual([
-      { endpoint: 'https://internal.deepseek.test/v1/tools/search', authorization: 'Bearer chat-key', token: null },
-      { endpoint: 'https://internal.deepseek.test/v1/tools/fetch', authorization: 'Bearer chat-key', token: null },
+      { endpoint: 'https://internal.deepseek.test/v1/tools/search', authorization: 'Bearer chat-key' },
+      { endpoint: 'https://internal.deepseek.test/v1/tools/fetch', authorization: 'Bearer chat-key' },
     ])
   })
 
@@ -123,33 +116,14 @@ describe('web-deepseek-api over the real model routes', () => {
     await ctx.web.search({ query: 'q' })
     await ctx.web.fetch({ url: 'https://example.test/' })
     expect(sent()).toEqual([
-      { endpoint: 'https://internal.deepseek.test/v1/tools/search', authorization: 'Bearer chat-key', token: null },
-      { endpoint: 'https://own.deepseek.test/v1/tools/fetch', authorization: 'Bearer own-key', token: null },
+      { endpoint: 'https://internal.deepseek.test/v1/tools/search', authorization: 'Bearer chat-key' },
+      { endpoint: 'https://own.deepseek.test/v1/tools/fetch', authorization: 'Bearer own-key' },
     ])
   })
 
-  it('falls back to the signed-in account at the account route origin without a key, outside a DeepSeek conversation', async () => {
+  it('withholds the request without a key', async () => {
     const { ctx, sent } = await bootComposition({}, { DEEPSEEK_BASE_URL: 'https://internal.deepseek.test/anthropic' })
-    expect([await ctx.web.searchReady('moonshotai'), await ctx.web.fetchReady(undefined)]).toEqual([true, true])
-    await ctx.web.search({ query: 'q' })
-    expect(sent()).toEqual([{ endpoint: 'https://internal.deepseek.test/v1/tools/search', authorization: null, token: 'account-token' }])
-  })
-
-  it('bills each capability as its billing setting chooses', async () => {
-    const { ctx, sent } = await bootComposition({ searchBilling: 'account', fetchBilling: 'api-key' }, {
-      DEEPSEEK_API_KEY: 'chat-key', DEEPSEEK_BASE_URL: 'https://internal.deepseek.test/anthropic',
-    })
-    await ctx.web.search({ query: 'q' })
-    await ctx.web.fetch({ url: 'https://example.test/' })
-    expect(sent()).toEqual([
-      { endpoint: 'https://internal.deepseek.test/v1/tools/search', authorization: null, token: 'account-token' },
-      { endpoint: 'https://internal.deepseek.test/v1/tools/fetch', authorization: 'Bearer chat-key', token: null },
-    ])
-  })
-
-  it('withholds API-key billing without a key despite a sign-in', async () => {
-    const { ctx, sent } = await bootComposition({ searchBilling: 'api-key' }, {})
-    expect(await ctx.web.searchReady('deepseek-account')).toBe(false)
+    expect([await ctx.web.searchReady('moonshotai'), await ctx.web.fetchReady(undefined)]).toEqual([false, false])
     await expect(ctx.web.search({ query: 'q' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_CREDENTIAL_MISSING' })
     expect(sent()).toEqual([])
   })
@@ -161,7 +135,7 @@ describe('web-deepseek-api over the real model routes', () => {
     await entry(ctx, 'llm-deepseek').dispose()
     expect(await ctx.web.searchReady(undefined)).toBe(true)
     await ctx.web.search({ query: 'q' })
-    expect(sent()).toEqual([{ endpoint: 'https://api.deepseek.com/v1/tools/search', authorization: 'Bearer chat-key', token: null }])
+    expect(sent()).toEqual([{ endpoint: 'https://api.deepseek.com/v1/tools/search', authorization: 'Bearer chat-key' }])
     await entry(ctx, 'web-deepseek-api').dispose()
     expect(ctx.web.listProviders()).toEqual({ search: [], fetch: [] })
   })

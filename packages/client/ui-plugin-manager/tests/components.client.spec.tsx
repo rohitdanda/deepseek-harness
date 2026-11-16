@@ -66,7 +66,7 @@ const REGISTRIES = { registry: null, fallbackRegistries: [MIRROR], resolved: OFF
 /** pnpm's own registry as the options label it: by npm's own name once read, the neutral default name until then. */
 const OFFICIAL_OPTION = `${en.registryOfficial} registry.npmjs.org`
 const UNREAD_OPTION = `${en.registryDefault} registry.npmjs.org`
-const MIRROR_OPTION = `${en.registryNpmmirror} registry.npmmirror.com`
+const MIRROR_OPTION = 'registry.npmmirror.com'
 
 const IDLE_INSTALL: InstallState = {
   open: false, spec: '', registries: null, registry: { kind: 'offered', registry: null }, registryOpen: false, registryError: false, attempts: null,
@@ -129,7 +129,6 @@ function renderTab(
     toggleRegistryOptions: vi.fn(),
     chooseRegistry: vi.fn(),
     changeRegistry: vi.fn(),
-    useGithubMirror: vi.fn(),
     approveBuildsAndRetry: vi.fn(),
     enableInstalled: vi.fn(),
     clearHighlight: vi.fn(),
@@ -148,7 +147,7 @@ function renderTab(
     toggleUpdateOutput: vi.fn(),
     loadDetail: vi.fn(),
     retryDetail: vi.fn(),
-    detailImage: vi.fn((name: string, document: string, destination: string, _fromNpm: boolean) =>
+    detailImage: vi.fn((name: string, document: string, destination: string) =>
       `https://dsh.example/api/plugin-manager/detail-file?bundle=${name}&document=${document}&path=${destination}`),
   }
   const unusedStandardHook = (): never => { throw new Error('Plugin manager fixture does not provide global state') }
@@ -396,7 +395,6 @@ describe('PluginManagerPage', () => {
       },
     })
     expect(screen.getByText(en.installFailedTitle)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: en.installUseGithubMirror })).toBeNull()
     // A Git spec checks without a name or version; the confirmed name and version head the card, above the spec.
     expect([...document.querySelectorAll('[data-install-subject] p')].map(line => line.textContent))
       .toEqual(['Alpha', en.installSubjectGit, en.installVersion.replace('{version}', '1.0.0'), 'git+https://github.com/o/r.git#abc'])
@@ -505,7 +503,7 @@ describe('PluginManagerPage', () => {
   it('shows a bundle\'s detail document first among its sections, and its failures with a retry', () => {
     const b = renderTab({ packages: [pkg()] })
     act(() => { b.navigation.actions.setView({ kind: 'package', name: 'dsh-better-sidebar' }) })
-    expect(b.actions.loadDetail).toHaveBeenCalledWith('dsh-better-sidebar', '0.16.0', 'en', false)
+    expect(b.actions.loadDetail).toHaveBeenCalledWith('dsh-better-sidebar', '0.16.0', 'en')
     expect(screen.getByRole('status', { name: en.detailLoading })).toBeTruthy()
     const key = bundleDetailKey('dsh-better-sidebar', '0.16.0', 'en')
     b.setDetails({ [key]: { status: 'ready', detail: { status: 'found', origin: 'locale', path: 'guide/DETAIL.md', markdown: '# Sidebar\n\n![shot](img/a.png)' } } })
@@ -522,12 +520,12 @@ describe('PluginManagerPage', () => {
       expect(screen.getByRole('alert').textContent).toBe(text)
     }
     fireEvent.click(screen.getByRole('button', { name: en.retry }))
-    expect(b.actions.retryDetail).toHaveBeenCalledWith('dsh-better-sidebar', '0.16.0', 'en', false)
+    expect(b.actions.retryDetail).toHaveBeenCalledWith('dsh-better-sidebar', '0.16.0', 'en')
     b.setDetails({ [key]: { status: 'ready', detail: { status: 'none' } } })
     expect(document.querySelector('[data-detail-document]')).toBeNull()
     // A read the controller forgot, after a profile change, starts again.
     b.setDetails({})
-    expect(b.actions.loadDetail).toHaveBeenLastCalledWith('dsh-better-sidebar', '0.16.0', 'en', false)
+    expect(b.actions.loadDetail).toHaveBeenLastCalledWith('dsh-better-sidebar', '0.16.0', 'en')
   })
 
   it('says where a bundle comes from: the spec that installs it, or built in, with its version', () => {
@@ -548,8 +546,8 @@ describe('PluginManagerPage', () => {
     expect(facts()).toEqual([en.sourceSpec, en.sourceBuiltIn])
     act(() => { b.navigation.actions.setView({ kind: 'package', name: 'dsh-missing' }) })
     expect(facts()).toEqual([en.sourceSpec, en.sourceNotInstalled])
-    // A bundle whose files are not installed is read from the npm file CDNs.
-    expect(b.actions.loadDetail).toHaveBeenLastCalledWith('dsh-missing', undefined, 'en', true)
+    // A bundle whose files are not installed asks the Host the same way; the Host has no document for it.
+    expect(b.actions.loadDetail).toHaveBeenLastCalledWith('dsh-missing', undefined, 'en')
   })
 
   it('preserves the requested bundle through StrictMode effect replay and page remounts', () => {
@@ -1894,7 +1892,7 @@ describe('PluginManagerPage', () => {
     }
     // A check no registry answered names them all.
     set({ install: { ...IDLE_INSTALL, open: true, spec: 'dsh-x', inputError: { problem: 'network', reason: 'r', registries: [null, MIRROR] } } })
-    expect(screen.getByRole('alert').textContent).toBe(en.installProblemNetworkAll.replace('{registries}', `${en.registryDefault}, ${en.registryNpmmirror}`))
+    expect(screen.getByRole('alert').textContent).toBe(en.installProblemNetworkAll.replace('{registries}', `${en.registryDefault}, registry.npmmirror.com`))
     fireEvent.click(screen.getByRole('button', { name: en.close }))
     expect(actions.closeInstall).toHaveBeenCalledTimes(1)
   })
@@ -2163,101 +2161,17 @@ describe('PluginManagerPage', () => {
     expect(screen.queryByText(en.installLogPath.replace('{path}', logPath))).toBeNull()
   })
 
-  it.each(['network', 'timeout'] as const)('shows GitHub recovery only after a %s failure and returns to package input', (kind) => {
+  it.each(['network', 'timeout'] as const)('keeps the ordinary failed screen with a retry after a GitHub %s failure', (kind) => {
     const subject = { spec: 'github:a/b', status: 'accepted', kind: 'git', bundle: null, registry: null, host: 'github.com' } as const
     const failed: InstallState = {
       ...IDLE_INSTALL, open: true, spec: subject.spec, registries: REGISTRIES, phase: 'failed', subject,
       failure: { reason: 'GitHub connection failed', kind, failedAt: 'spec-host' },
     }
-    const { actions, set, setLanguage } = renderTab({ install: { ...failed, phase: 'idle', failure: null } })
-    expect(screen.queryByText(en.installGithubFailedTitle)).toBeNull()
-    set({ install: failed })
-    const dialog = screen.getByRole('dialog', { name: kind === 'timeout' ? en.installGithubTimeoutTitle : en.installGithubFailedTitle })
-    expect(within(dialog).getByText(en.installGithubFailedDescription)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: en.installRetry })).toBeNull()
-    fireEvent.click(within(dialog).getByRole('button', { name: en.installUseGithubMirror }))
-    expect(actions.useGithubMirror).toHaveBeenCalledOnce()
-    expect(actions.runInstall).not.toHaveBeenCalled()
-    fireEvent.click(within(dialog).getByRole('button', { name: en.cancel }))
-    expect(actions.closeInstall).toHaveBeenCalledOnce()
-    setLanguage(zh)
-    expect(screen.getByRole('dialog', { name: kind === 'timeout' ? '连接 GitHub 超时' : '无法访问 GitHub' })).toBeTruthy()
-    expect(screen.getByText('请尝试其他安装来源。')).toBeTruthy()
-    set({ install: { ...IDLE_INSTALL, open: true, mirrorRecovery: true, registries: REGISTRIES, registry: { kind: 'offered', registry: MIRROR } } })
-    const form = within(screen.getByRole('dialog', { name: zh.installTitle }))
-    expect(form.queryByText(zh.installDescription)).toBeNull()
-    expect(form.queryByRole('textbox', { name: zh.installSpecLabel })).toBeNull()
-    const input = screen.getByRole('textbox', { name: zh.installPackageLabel })
-    expect(input).toHaveProperty('value', '')
-    expect(document.activeElement).toBe(input)
-    expect(screen.getByRole('button', { name: zh.installRun })).toHaveProperty('disabled', true)
-    expect(form.getAllByRole('button')).toEqual([
-      form.getByRole('button', { name: zh.close }),
-      form.getByRole('button', { name: zh.installGuideToggle }),
-      form.getByRole('button', { name: '安装源 中国大陆镜像源' }),
-      form.getByRole('button', { name: zh.installRun }),
-    ])
-  })
-
-  it('offers another way instead of a mirror the failed GitHub install already asked', () => {
-    const subject = { spec: 'github:a/b', status: 'accepted', kind: 'git', bundle: null, registry: null, host: 'github.com' } as const
-    const failed: InstallState = {
-      ...IDLE_INSTALL, open: true, spec: subject.spec, registries: REGISTRIES, registry: { kind: 'offered', registry: MIRROR },
-      phase: 'failed', subject, failure: { reason: 'GitHub connection timed out', kind: 'timeout', failedAt: 'spec-host' },
-    }
-    const { actions, set, setLanguage } = renderTab({ install: failed })
-    // The mirror picked from the options, also while pnpm's own configuration is unread, typed as an address, or named
-    // by pnpm's own configuration.
-    for (const patch of [
-      {},
-      { registries: { ...REGISTRIES, resolved: null } },
-      { registry: { kind: 'custom', url: ' https://registry.npmmirror.com ' } },
-      { registries: { ...REGISTRIES, resolved: MIRROR }, registry: { kind: 'offered', registry: null } },
-    ] as const) {
-      set({ install: { ...failed, ...patch } })
-      const dialog = within(screen.getByRole('dialog', { name: en.installGithubTimeoutTitle }))
-      expect(dialog.getByText(en.installGithubFailedDescription)).toBeTruthy()
-      expect(dialog.getAllByRole('button')).toEqual([
-        dialog.getByRole('button', { name: en.close }),
-        dialog.getByRole('button', { name: en.cancel }),
-        dialog.getByRole('button', { name: en.installTryAnotherWay }),
-      ])
-    }
-    fireEvent.click(screen.getByRole('button', { name: en.installTryAnotherWay }))
-    expect(actions.useGithubMirror).toHaveBeenCalledOnce()
-    expect(actions.runInstall).not.toHaveBeenCalled()
-    // The form it returns to opens the guide to the package-name example.
-    set({ install: { ...IDLE_INSTALL, open: true, mirrorRecovery: true, registries: REGISTRIES, registry: failed.registry } })
-    expect(screen.getByRole('button', { name: en.installGuideHide }).getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByText(en.installGuideIdHint)).toBeTruthy()
-    // A typed address other than the mirror can still switch to it.
-    set({ install: { ...failed, registry: { kind: 'custom', url: 'npm.corp' } } })
-    expect(screen.getByRole('button', { name: en.installUseGithubMirror })).toBeTruthy()
-    setLanguage(zh)
-    set({ install: failed })
-    expect(screen.getByRole('button', { name: '试试其他方式' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '改用国内镜像' })).toBeNull()
-  })
-
-  it('keeps the ordinary failure view for registry errors, other hosts, and unavailable mirrors', () => {
-    const failed: InstallState = {
-      ...IDLE_INSTALL, open: true, registries: REGISTRIES, phase: 'failed',
-      subject: { spec: 'github:a/b', status: 'accepted', kind: 'git', bundle: null, registry: null, host: 'github.com' },
-      failure: { reason: 'failed', kind: 'network', failedAt: 'registry' },
-    }
-    const { set } = renderTab({ install: failed })
-    expect(screen.getByRole('button', { name: en.installChangeRegistry })).toBeTruthy()
-    for (const patch of [
-      { subject: { ...failed.subject!, host: 'gitlab.com' } },
-      { subject: null },
-      { registries: { ...REGISTRIES, fallbackRegistries: [] } },
-      { registries: null },
-      { failure: { reason: 'not found', kind: 'not-found' as const, failedAt: 'spec-host' as const } },
-    ]) {
-      set({ install: { ...failed, failure: { reason: 'failed', kind: 'network', failedAt: 'spec-host' }, ...patch } })
-      expect(screen.queryByRole('dialog', { name: en.installGithubFailedTitle })).toBeNull()
-      expect(screen.getByRole('button', { name: en.installRetry })).toBeTruthy()
-    }
+    const { actions } = renderTab({ install: failed })
+    expect(screen.getByText(en.installFailedTitle)).toBeTruthy()
+    expect(screen.getByText(en.installFailureNetworkHost.replace('{host}', 'github.com'))).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.installRetry }))
+    expect(actions.runInstall).toHaveBeenCalledOnce()
   })
 
   it('selects the custom registry from its whole area and focuses the address without clearing it', () => {
@@ -2369,7 +2283,7 @@ describe('PluginManagerPage', () => {
     fireEvent.click(screen.getByRole('radio', { name: MIRROR_OPTION }))
     expect(actions.chooseRegistry).toHaveBeenLastCalledWith({ kind: 'offered', registry: MIRROR })
     set({ install: { ...open, registryOpen: true, registry: { kind: 'offered', registry: MIRROR } } })
-    expect(screen.getByRole('button', { name: `${en.registryToggle} ${en.registryNpmmirror}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `${en.registryToggle} registry.npmmirror.com` })).toBeTruthy()
     // A typed registry: the radio picks it, the field carries it, and it is asked alone.
     fireEvent.click(screen.getByRole('radio', { name: new RegExp(en.registryCustom) }))
     expect(actions.chooseRegistry).toHaveBeenLastCalledWith({ kind: 'custom', url: '' })
@@ -2400,7 +2314,7 @@ describe('PluginManagerPage', () => {
     expect(screen.getByRole('button', { name: `${en.registryToggle} npm.corp.example` })).toBeTruthy()
     // One that names the mirror reads by the mirror's name, and the mirror the Host offers is not listed twice.
     set({ install: { ...open, registryOpen: true, registries: { ...REGISTRIES, resolved: MIRROR } } })
-    expect(screen.getByRole('button', { name: `${en.registryToggle} ${en.registryNpmmirror}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `${en.registryToggle} registry.npmmirror.com` })).toBeTruthy()
     const mirrorLabels = screen.getAllByRole('radio').map(radio => radio.parentElement?.textContent)
     expect(mirrorLabels).toEqual([MIRROR_OPTION, en.registryCustom])
     expect(new Set(mirrorLabels).size).toBe(mirrorLabels.length)
@@ -2426,9 +2340,9 @@ describe('PluginManagerPage', () => {
     })
     expect(screen.getByRole('status').textContent).toBe(en.installingTitle)
     expect(screen.getByText(en.installAttempt
-      .replace('{previous}', en.registryDefault).replace('{registry}', en.registryNpmmirror).replace('{index}', '2').replace('{total}', '2'))).toBeTruthy()
+      .replace('{previous}', en.registryDefault).replace('{registry}', 'registry.npmmirror.com').replace('{index}', '2').replace('{total}', '2'))).toBeTruthy()
     expect(screen.getByText(en.installAttemptBadge.replace('{index}', '1').replace('{registry}', en.registryDefault))).toBeTruthy()
-    expect(screen.getByText(en.installAttemptBadge.replace('{index}', '2').replace('{registry}', en.registryNpmmirror))).toBeTruthy()
+    expect(screen.getByText(en.installAttemptBadge.replace('{index}', '2').replace('{registry}', 'registry.npmmirror.com'))).toBeTruthy()
     // The first attempt says nothing about a registry before it; a single run carries no badge.
     set({ install: { ...IDLE_INSTALL, open: true, spec: 'dsh-x', phase: 'running', subject, runs: [runs[0] as never], detailsOpen: true, attempts: { registries: [null], total: 2 } } })
     expect(screen.queryByText(en.installAttemptBadge.replace('{index}', '1').replace('{registry}', en.registryDefault))).toBeNull()
@@ -2440,7 +2354,7 @@ describe('PluginManagerPage', () => {
         attempts: { registries: [null, MIRROR], total: 2 }, failure: { reason: 'ERR', kind: 'network', failedAt: 'registry' },
       },
     })
-    expect(screen.getByText(en.installFailureNetworkAll.replace('{registries}', `${en.registryDefault}, ${en.registryNpmmirror}`))).toBeTruthy()
+    expect(screen.getByText(en.installFailureNetworkAll.replace('{registries}', `${en.registryDefault}, registry.npmmirror.com`))).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: en.installChangeRegistry }))
     expect(actions.changeRegistry).toHaveBeenCalledTimes(1)
     // One registry that failed reads as the plain network failure; a stale copy on it still offers another registry.
@@ -2942,7 +2856,7 @@ describe('registry versions and updates', () => {
     fireEvent.click(within(row('1.3.2')).getByRole('button', { name: 'Update to 1.3.2' }))
     expect(actions.openUpdate).toHaveBeenLastCalledWith('dsh-better-sidebar', '1.3.2')
     // The registry that answered, marked as a fallback after the first one failed.
-    expect(within(section()).getByText(en.registryNpmmirror)).toBeTruthy()
+    expect(within(section()).getByText('registry.npmmirror.com')).toBeTruthy()
     expect(within(section()).getByText(en.versionsFallbackTag)).toBeTruthy()
     fireEvent.click(within(section()).getByRole('checkbox', { name: en.versionsShowPrerelease }))
     expect(row('2.1.0-beta.1')).toBeTruthy()
@@ -2975,7 +2889,7 @@ describe('registry versions and updates', () => {
     } })
     open(navigation)
     expect(within(section()).getByText(en.versionsFailedNetwork)).toBeTruthy()
-    expect(within(section()).getByText(`${en.registryNpmmirror} ${en.versionsProblemNetwork}`)).toBeTruthy()
+    expect(within(section()).getByText(`registry.npmmirror.com ${en.versionsProblemNetwork}`)).toBeTruthy()
     expect(within(section()).queryByRole('button', { name: en.versionsRecheck })).toBeNull()
     fireEvent.click(within(section()).getByRole('button', { name: en.versionsDetails }))
     expect(within(section()).getByText('getaddrinfo ENOTFOUND registry.npmmirror.com')).toBeTruthy()
@@ -3039,7 +2953,7 @@ describe('registry versions and updates', () => {
   it('confirms an update with its versions and registry, and runs it', () => {
     const { actions } = renderTab({ packages: [updatable()], update: base })
     expect(within(dialog()).getByText('1.3.0')).toBeTruthy()
-    expect(within(dialog()).getByText(en.registryNpmmirror)).toBeTruthy()
+    expect(within(dialog()).getByText('registry.npmmirror.com')).toBeTruthy()
     expect(within(dialog()).getByText(en.updateDescription.replaceAll('{from}', '1.3.0').replace('{to}', '1.4.0'))).toBeTruthy()
     fireEvent.click(within(dialog()).getByRole('button', { name: en.update }))
     expect(actions.runUpdate).toHaveBeenCalledOnce()
@@ -3070,19 +2984,19 @@ describe('registry versions and updates', () => {
   })
 
   it.each([
-    ['applied', { step: 'install', result: change('applied') }, 'Updated to 1.4.0', [['done', 'Check 1.4.0'], ['done', `Install 1.4.0 from ${en.registryNpmmirror}`]]],
-    ['restart', { step: 'install', result: change('restart-required', { restartReason: 'host-module' }) }, '1.4.0 installed; it takes effect after a restart', [['done', 'Check 1.4.0'], ['done', `Install 1.4.0 from ${en.registryNpmmirror}`]]],
+    ['applied', { step: 'install', result: change('applied') }, 'Updated to 1.4.0', [['done', 'Check 1.4.0'], ['done', 'Install 1.4.0 from registry.npmmirror.com']]],
+    ['restart', { step: 'install', result: change('restart-required', { restartReason: 'host-module' }) }, '1.4.0 installed; it takes effect after a restart', [['done', 'Check 1.4.0'], ['done', 'Install 1.4.0 from registry.npmmirror.com']]],
     ['refused', { step: 'check', result: change('failed', { error: { code: 'incompatible-version' } }) }, 'Cannot update to 1.4.0', [['failed', 'Check 1.4.0']]],
     ['removal failure', { step: 'remove', result: change('failed', { stage: 'remove', error: { code: 'operation-error', diagnostic: 'EBUSY' } }) }, 'Could not remove 1.3.0', [['done', 'Check 1.4.0'], ['failed', 'Stop and remove 1.3.0']]],
     ['restored', {
       step: 'install', result: change('failed', { packageResult: { exitCode: 1, output: '\nERR_PNPM_FETCH_404 Not Found', truncated: false, logPath: '/l', kind: 'not-found' } }),
       restore: change('applied'),
-    }, 'Update failed; restored 1.3.0', [['done', 'Check 1.4.0'], ['failed', `Install 1.4.0 from ${en.registryNpmmirror}`], ['done', 'Install 1.3.0 again']]],
+    }, 'Update failed; restored 1.3.0', [['done', 'Check 1.4.0'], ['failed', 'Install 1.4.0 from registry.npmmirror.com'], ['done', 'Install 1.3.0 again']]],
     ['kept', { step: 'install', result: change('failed', {
       error: { code: 'operation-error', diagnostic: 'ETARGET' }, packageResult: { exitCode: 1, output: 'ETARGET', truncated: false, logPath: '/l' },
-    }) }, 'Could not update to 1.4.0', [['done', 'Check 1.4.0'], ['failed', `Install 1.4.0 from ${en.registryNpmmirror}`]]],
+    }) }, 'Could not update to 1.4.0', [['done', 'Check 1.4.0'], ['failed', 'Install 1.4.0 from registry.npmmirror.com']]],
     ['broken', { step: 'install', result: change('cancelled'), restore: change('failed', { packageResult: { exitCode: 1, output: 'gone', truncated: false, logPath: '/l' } }) },
-      en.updateBroken, [['done', 'Check 1.4.0'], ['failed', `Install 1.4.0 from ${en.registryNpmmirror}`], ['failed', 'Install 1.3.0 again']]],
+      en.updateBroken, [['done', 'Check 1.4.0'], ['failed', 'Install 1.4.0 from registry.npmmirror.com'], ['failed', 'Install 1.3.0 again']]],
   ] as const)('reports a %s outcome with the steps its answer implies', (_name, answer, title, steps) => {
     const result = { from: '1.3.0', to: '1.4.0', ...answer } as PluginUpdateResult
     const { actions } = renderTab({ packages: [updatable()], update: { ...base, phase: 'done', result } })

@@ -66,7 +66,7 @@ renderFactorySlot('conversation.chat.reasoning.content', {
 
 ### 翻译插件接入
 
-[免登录翻译设计](2026-10-05-anonymous-reasoning-translation.zh.md)保留外部请求、隐私、失败与取消决策；其正文组合方式由本方案取代。翻译插件注册到标准 Body Slot，在自己的工具栏内渲染原文／译文切换、状态及重试按钮，使用自己的状态和可选自定义 labels 包装官方 Content Factory，不直接调用 `MarkdownText`。
+本方案取代[免登录翻译设计](../../archived/architecture/2026-10-05-anonymous-reasoning-translation.md)的正文组合方式；该设计中的 Google 与 Bing 路径已移除。翻译插件注册到标准 Body Slot，在自己的工具栏内渲染原文／译文切换、状态及重试按钮，使用自己的状态和可选自定义 labels 包装官方 Content Factory，不直接调用 `MarkdownText`。
 
 翻译请求、分片、缓存、持久化和设置保持不变。翻译切换按钮属于插件正文，不再由官方思考标题承载；不增加正文外的 Slot，不处理用户消息遮挡，也不改动通用 Markdown 解析器。
 

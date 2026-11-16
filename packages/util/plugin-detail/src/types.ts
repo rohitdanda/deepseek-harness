@@ -7,6 +7,3 @@
  * file that does not exist.
  */
 export type DetailFailureReason = 'too-large' | 'network' | 'denied' | 'git-unavailable' | 'invalid'
-
-/** A public CDN that serves single files of published npm package versions. */
-export type NpmFileSource = 'jsdelivr' | 'unpkg' | 'npmmirror'

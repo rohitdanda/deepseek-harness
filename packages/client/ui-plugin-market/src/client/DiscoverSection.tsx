@@ -262,7 +262,7 @@ function EntryDetail({ entry, listing, t, face, hooks, language, onBack, onInsta
         </p>
       )}
       <div className={css.detailDocument}>
-        <PluginDetailSection request={{ url: listing.url, name: entry.name, version: version.version, npm: version.source.type === 'npm' }} t={t}
+        <PluginDetailSection request={{ url: listing.url, name: entry.name, version: version.version }} t={t}
           loadDetail={face.loadDetail} retryDetail={face.retryDetail} detailImage={face.detailImage}
           useDetails={hooks.useDetails} useLocale={hooks.useLocale} />
       </div>

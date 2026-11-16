@@ -81,7 +81,6 @@ async function bench(allows: ((action: string) => boolean) | 'switchable' = () =
   const remote = new TestRemote(ctx, {
     settings: { describe: vi.fn(async () => ({ ok: true as const, value: { writable: true, hasDocument: true, namespaces: [] } })) },
     pluginInventory: { list },
-    pluginRegistryProbe: { fastest: vi.fn(async () => ({ ok: true as const, value: null })) },
     pluginManager: {
       listBundles: vi.fn(() => Promise.resolve({ ok: true as const, value: [] })),
       listPlugins: vi.fn(() => Promise.resolve({ ok: true as const, value: [] })),
@@ -197,7 +196,7 @@ describe('ui-plugin-manager browser plugin', () => {
   })
 
   it('declares only the services the page and its Remote methods use', () => {
-    expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.pluginInventory', 'remote.pluginRegistryProbe', 'configForms', 'layout', 'remoteAccess'])
+    expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.pluginInventory', 'configForms', 'layout', 'remoteAccess'])
   })
 
   it('reads the Host again on a later grant after showing the page, and not while access is withdrawn', async () => {
@@ -294,11 +293,11 @@ describe('ui-plugin-manager browser plugin', () => {
     await vi.waitFor(() => { expect(face.hooks.pluginManager.getSnapshot().status).toBe('ready') })
     expect(b.list).toHaveBeenCalledTimes(1)
     // A profile change invalidates reads without withdrawing the displayed document.
-    face.loadDetail('dsh-a', '1.0.0', 'en', false)
+    face.loadDetail('dsh-a', '1.0.0', 'en')
     await vi.waitFor(() => { expect(Object.values(face.hooks.bundleDetails.getSnapshot())[0]?.status).toBe('ready') })
     const loadedDetails = face.hooks.bundleDetails.getSnapshot()
-    face.retryDetail('dsh-a', '1.0.0', 'en', false)
-    expect(face.detailImage('dsh-a', 'README.md', 'a.png', false)).toContain('api/plugin-manager/detail-file?bundle=dsh-a')
+    face.retryDetail('dsh-a', '1.0.0', 'en')
+    expect(face.detailImage('dsh-a', 'README.md', 'a.png')).toContain('api/plugin-manager/detail-file?bundle=dsh-a')
     expect(face.hooks.locale.getSnapshot().active).toBe('zh')
     b.remote.emit('plugin-manager/changed', [{ reason: 'bundle' }])
     await vi.waitFor(() => { expect(b.list).toHaveBeenCalledTimes(2) })

@@ -16,7 +16,7 @@ export interface CotTranslationSnapshot {
   maxTextChars: number
   /** Current accepted provider and target-language preferences. */
   preferences: CotTranslationPreferences
-  /** Anonymous endpoints and native paid routes currently eligible for translation. */
+  /** Native routes currently eligible for translation. */
   availableProviders: readonly TranslationProvider[]
 }
 

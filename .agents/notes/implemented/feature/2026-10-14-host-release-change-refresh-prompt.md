@@ -106,7 +106,7 @@ Order of operations:
 
 ### UI
 
-- Owner: [ui-settings-general](../../../../packages/client/ui-settings-general/src/client/index.ts), which already owns the connection pill (`ConnectionIndicator`) and the Desktop update prompt; its `inject` adds `modules`.
+- Owner: [ui-settings-general](../../../../packages/client/ui-settings-general/src/client/index.ts), which already owns the connection pill (`ConnectionIndicator`); its `inject` adds `modules`.
 - It registers the `shell.overlay` entry `host-release-change` through `ctx.slots.inject('shell.overlay', ...)` and renders it with `Modal`. The inject face provides `hooks: { releaseChange: ctx.modules.entries.releaseChange }`, `dismissRelease`, and `reloadPage`.
 - Copy lives in the zh/en locale dictionaries: a title, one sentence stating that live updates are paused until a reload, and two gray-labelled lines:
   - **Service**: `previous` (gray) → `host` (solid), joined by a 1px solid green arrow because the Host already switched.
@@ -128,7 +128,7 @@ Order of operations:
 - **Store the decision in localStorage**: the decision concerns one page's code, and a reload replaces that code, so it should not outlive the page.
 - **Remember every dismissed release**: a page that moves between several Host releases is rare, and asking again after another release appeared costs one click.
 - **Keep the identity an opaque string and let the page split version and commit**: the display rule needs the two parts separately, and parsing a concatenated string breaks whenever its format changes.
-- **Create a separate UI package**: it needs three more registrations, while ui-settings-general already owns connection state and update prompts.
+- **Create a separate UI package**: it needs three more registrations, while ui-settings-general already owns connection state.
 
 ## Consequences
 

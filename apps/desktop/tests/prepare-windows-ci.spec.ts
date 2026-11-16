@@ -22,7 +22,7 @@ describe('manual Windows CI version', () => {
 })
 
 
-it('resolves the selected version policy independently of the update channel', () => {
+it('resolves the selected version policy', () => {
   expect(windowsCiVersion({ ...inputs, PACKAGE_VERSION_MODE: 'default', DSH_PACKAGING_PRESET: 'production' }, '1.2.3', now)).toBe('1.2.3')
   expect(windowsCiVersion({ ...inputs, PACKAGE_VERSION_MODE: 'default', DSH_PACKAGING_PRESET: 'test' }, '1.2.3', now)).toBe('1.2.3-test.20261009.42.2')
   expect(windowsCiVersion({ PACKAGE_VERSION_MODE: 'follow-dsh' }, '1.2.3-alpha.1', now)).toBe('1.2.3-alpha.1')

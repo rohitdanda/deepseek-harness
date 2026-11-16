@@ -28,10 +28,9 @@ describe('dsh-base bundle', () => {
     )
     expect(rows.length).toBeGreaterThan(50)
     expect(rows.some(row => row.id === 'agent-loop')).toBe(true)
-    expect(rows.find(row => row.id === 'session-telemetry-otel')?.disabled).toBeUndefined()
-    expect(rows.find(row => row.id === 'session-telemetry-otel')?.config?.['mode']).toEqual({
-      __jsExpr: "process.env.DSH_TELEMETRY_MODE || 'FEEDBACK_ONLY'",
-    })
+    const removedFeature = /telemetry|otel|analytics|feedback|session-log-deepseek|plugin-package-inventory/
+    const removedFeatureRows = rows.filter(row => removedFeature.test(String(row.id)))
+    expect(removedFeatureRows).toEqual([])
     expect(rows.find(row => row.id === 'hmr')).toMatchObject({
       config: { root: [] },
     })

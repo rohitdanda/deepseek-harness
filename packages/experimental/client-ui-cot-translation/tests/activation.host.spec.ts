@@ -1,7 +1,5 @@
 /** Translation joins the GUI's ordinary Agent ownership without creating a model turn. */
-import { once } from 'node:events'
 import { mkdtemp, rm } from 'node:fs/promises'
-import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -16,6 +14,19 @@ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { afterEach, expect, it, vi } from 'vitest'
 import CotTranslationController from '../src/index.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
+
+/** Source texts that reached model dispatch; the native model call is the only mocked external service. */
+const dispatched = vi.hoisted(() => [] as string[])
+vi.mock('../../translator/src/deepseek.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../../translator/src/deepseek.ts')>(),
+  translateWithDeepSeek: async (_ctx: unknown, spec: { text: string }, _config: unknown, _signal: unknown, _track: unknown,
+    log: { request(data: unknown): Promise<number>; result(seq: number, text: string): Promise<void> }, identity: unknown) => {
+    dispatched.push(spec.text)
+    const seq = await log.request(identity)
+    await log.result(seq, 'Saved translation')
+    return 'Saved translation'
+  },
+}))
 
 /** Real stored-session reads; this fixture does not provide full-text search. */
 class ReadOnlySessionQuery extends SessionQuery {
@@ -32,28 +43,7 @@ afterEach(async () => {
 async function fixture(origin?: 'subagent') {
   const root = await mkdtemp(join(tmpdir(), 'dsh-cot-activation-'))
   cleanups.push(async () => { await rm(root, { recursive: true, force: true }) })
-  const requests: string[] = []
-  const server = createServer((request, response) => {
-    const chunks: Buffer[] = []
-    request.on('data', (chunk: Buffer) => { chunks.push(chunk) })
-    request.on('end', () => {
-      requests.push(Buffer.concat(chunks).toString('utf8'))
-      response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify([{ translations: [{ text: 'Saved translation', to: 'zh-Hans' }] }]))
-    })
-  })
-  cleanups.push(async () => {
-    const closed = new Promise<void>((resolve, reject) => server.close((error) => {
-      if (error === undefined) resolve()
-      else reject(error)
-    }))
-    server.closeAllConnections()
-    await closed
-  })
-  server.listen(0, '127.0.0.1')
-  await once(server, 'listening')
-  const address = server.address()
-  if (address === null || typeof address === 'string') throw new Error('Expected allocated loopback listener')
+  dispatched.length = 0
 
   const ctx = new Context()
   cleanups.push(async () => { await ctx.fiber.dispose() })
@@ -70,7 +60,7 @@ async function fixture(origin?: 'subagent') {
   const sessions = await createSessionTestController(ctx, {
     nativeOpen: false, cwd: root, defaultModelSelection: () => ({ provider: 'unused', model: 'unused' }),
   })
-  await ctx.plugin(Translator, Translator.Config({ bingEndpoint: `http://127.0.0.1:${address.port}/bing` }))
+  await ctx.plugin(Translator, Translator.Config({}))
   const ui = ctx.plugin(CotTranslationController, {})
   await ui
 
@@ -86,7 +76,7 @@ async function fixture(origin?: 'subagent') {
   })
   await writer.append(original)
   await writer.flush()
-  return { ctx, id, original, sessions, ui, requests }
+  return { ctx, id, original, sessions, ui, requests: dispatched }
 }
 
 it('shares normal GUI activation and leaves the resumed Agent owned by the GUI after translation is disabled', async () => {
@@ -124,7 +114,7 @@ it('shares normal GUI activation and leaves the resumed Agent owned by the GUI a
   expect(startups).toEqual([{ id: b.id, source: 'resume' }])
   expect(writerOpen.mock.calls.filter(([, access]) => access === 'write')).toHaveLength(1)
   expect(stream).not.toHaveBeenCalled()
-  expect(b.requests).toEqual(['["Original reasoning"]'])
+  expect(b.requests).toEqual(['Original reasoning'])
   const owner = b.ctx.agents.get(b.id)
   expect(owner?.id).toBe(result.agent.id)
   await b.ui.dispose()

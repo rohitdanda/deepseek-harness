@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This experimental bundle composes the standalone `cua-mcp` profile, an MCP stdio server for Computer Use. Every DSH installation ships it; a profile manifest that selects this bundle alone lets `dsh --profile cua-mcp` serve `cua_get_api_reference`, `cua_run_code`, and `cua_reset` to one MCP client. The profile is this bundle alone: no model adapter, prompt-side tool, or telemetry row loads. One connection owns one Agent whose programs keep application and window objects in memory between calls. Consent for application and pointer access is granted without a human or forwarded to the client as an elicitation; the connected harness owns the model.
+This experimental bundle composes the standalone `cua-mcp` profile, an MCP stdio server for Computer Use. Every DSH installation ships it; a profile manifest that selects this bundle alone lets `dsh --profile cua-mcp` serve `cua_get_api_reference`, `cua_run_code`, and `cua_reset` to one MCP client. The profile is this bundle alone: no model adapter or prompt-side tool row loads. One connection owns one Agent whose programs keep application and window objects in memory between calls. Consent for application and pointer access is granted without a human or forwarded to the client as an elicitation; the connected harness owns the model.
 
 ## Table of Contents
 

@@ -16,6 +16,10 @@ vi.mock('../src/parse-thread.ts', () => ({
 
 const INDEX = 'https://market.example/index.json'
 const COMMIT = 'b'.repeat(40)
+
+/** The GitLab single-file API URL of one path of a project on the configured GitLab host. */
+const gitlab = (project: string, path: string, ref: string): string =>
+  `https://gitlab.example/api/v4/projects/${encodeURIComponent(project)}/repository/files/${encodeURIComponent(path)}/raw?ref=${ref}`
 let home: string
 
 beforeEach(() => {
@@ -44,25 +48,25 @@ function serve(routes: Record<string, unknown>) {
 const index = {
   format: 1, title: 'Market', plugins: [
     {
-      name: 'from-git', repository: { url: 'https://github.com/o/mono', directory: 'other' },
-      versions: [{ version: '1.0.0', publishTimestamp: 1, source: { type: 'git', url: 'https://github.com/o/r', commit: COMMIT, path: 'pkg' }, engines: { dsh: '*' } }],
+      name: 'from-git', repository: { url: 'https://gitlab.example/o/mono', directory: 'other' },
+      versions: [{ version: '1.0.0', publishTimestamp: 1, source: { type: 'git', url: 'https://gitlab.example/o/r', commit: COMMIT, path: 'pkg' }, engines: { dsh: '*' } }],
     },
     {
       name: 'from-git-root', repository: { url: 'https://example.com/only' },
-      versions: [{ version: '1.0.0', publishTimestamp: 1, source: { type: 'git', url: 'https://github.com/o/root', commit: COMMIT }, engines: { dsh: '*' } }],
+      versions: [{ version: '1.0.0', publishTimestamp: 1, source: { type: 'git', url: 'https://gitlab.example/o/root', commit: COMMIT }, engines: { dsh: '*' } }],
     },
     {
-      name: 'from-git-self', repository: { url: 'https://github.com/o/self', directory: 'pkg' },
-      versions: [{ version: '1.0.0', publishTimestamp: 1, source: { type: 'git', url: 'https://github.com/o/self', commit: COMMIT, path: 'pkg' }, engines: { dsh: '*' } }],
+      name: 'from-git-self', repository: { url: 'https://gitlab.example/o/self', directory: 'pkg' },
+      versions: [{ version: '1.0.0', publishTimestamp: 1, source: { type: 'git', url: 'https://gitlab.example/o/self', commit: COMMIT, path: 'pkg' }, engines: { dsh: '*' } }],
     },
     { name: 'bare', versions: [{ version: '1.0.0', publishTimestamp: 1, source: { type: 'npm' }, engines: { dsh: '*' } }] },
     {
       name: 'from-npm', versions: [
         { version: '2.0.0', publishTimestamp: 1, source: { type: 'npm' }, engines: { dsh: '*' } },
         { version: '1.0.0', publishTimestamp: 1, source: { type: 'npm', registry: 'https://npm.corp.example/' }, engines: { dsh: '*' } },
-        { version: '0.9.0', publishTimestamp: 1, source: { type: 'npm', registry: 'https://registry.npmmirror.com/' }, engines: { dsh: '*' } },
+        { version: '0.9.0', publishTimestamp: 1, source: { type: 'npm', registry: 'https://registry.example.org/' }, engines: { dsh: '*' } },
       ],
-      repository: { url: 'https://github.com/o/npm' },
+      repository: { url: 'https://gitlab.example/o/npm' },
     },
   ],
 }
@@ -79,7 +83,7 @@ async function mount(options: { profile?: boolean; connection?: boolean } = {}) 
   if (options.profile === true) {
     ctx.provide('profileContext', {
       name: 'test', startedBundles: [], dir: join(home, 'profile'), patchPath: join(home, 'profile', 'cordis.patch.yml'),
-      installAnchor: join(home, 'package.json'), cwd: home, home, overlays: [], telemetryDisabledEnv: undefined,
+      installAnchor: join(home, 'package.json'), cwd: home, home, overlays: [],
     })
   }
   const routes = new Map<string, (request: Request) => Promise<Response>>()
@@ -96,7 +100,7 @@ async function mount(options: { profile?: boolean; connection?: boolean } = {}) 
     }
     await ctx.plugin(Connection)
   }
-  await ctx.plugin(PluginMarket, { indexes: [INDEX], ...options.profile === true ? {} : { detailCacheDir: join(home, 'cache') } })
+  await ctx.plugin(PluginMarket, { indexes: [INDEX], detailGitlabHosts: ['gitlab.example'], ...options.profile === true ? {} : { detailCacheDir: join(home, 'cache') } })
   return { market: ctx.pluginMarket, routes }
 }
 
@@ -112,13 +116,12 @@ it('requires a clone cache directory outside a profile', async () => {
   await expect(ctx.plugin(PluginMarket, { indexes: [] })).rejects.toThrow('detailCacheDir must be an absolute path')
 })
 
-it('reads market entries from their version source and the entry repository', async () => {
+it('reads market entries from their Git source and the entry repository, and asks no other host', async () => {
   const requests = serve({
     [INDEX]: index,
-    [`https://raw.githubusercontent.com/o/r/${COMMIT}/pkg/README.md`]: '# Git',
-    [`https://raw.githubusercontent.com/o/root/${COMMIT}/README.md`]: '# Root',
-    'https://cdn.jsdelivr.net/npm/from-npm@2.0.0/README.md': '# Npm',
-    'https://raw.githubusercontent.com/o/npm/HEAD/README.md': '# Npm repository',
+    [gitlab('o/r', 'pkg/README.md', COMMIT)]: '# Git',
+    [gitlab('o/root', 'README.md', COMMIT)]: '# Root',
+    [gitlab('o/npm', 'README.md', 'HEAD')]: '# Npm repository',
   })
   const { market } = await mount({ profile: true })
   expect(await market.readEntryDetail(INDEX, 'from-git', '1.0.0', 'en')).toMatchObject({ origin: 'readme', markdown: '# Git' })
@@ -126,30 +129,28 @@ it('reads market entries from their version source and the entry repository', as
   expect(await market.readEntryDetail(INDEX, 'bare', '1.0.0', 'en')).toEqual({ status: 'none' })
   // The entry's repository is the source directory just read, so its default branch is not read again.
   expect(await market.readEntryDetail(INDEX, 'from-git-self', '1.0.0', 'en')).toEqual({ status: 'none' })
-  expect(requests.mock.calls.map(([url]) => url).filter(url => url.includes('/o/self/HEAD/'))).toEqual([])
-  expect(await market.readEntryDetail(INDEX, 'from-npm', '2.0.0', 'en')).toMatchObject({ origin: 'readme', markdown: '# Npm' })
-  // A private registry's package files are not on the public CDNs; only the entry's repository is read.
-  expect(await market.readEntryDetail(INDEX, 'from-npm', '1.0.0', 'en')).toMatchObject({ origin: 'repository', markdown: '# Npm repository' })
-  expect(await market.readEntryDetail(INDEX, 'from-npm', '0.9.0', 'en')).toMatchObject({ origin: 'repository' })
+  expect(requests.mock.calls.map(([url]) => url).filter(url => url.includes('o%2Fself') && url.endsWith('ref=HEAD'))).toEqual([])
+  // An npm version has no readable package files, whatever its registry; only the entry's repository is read.
+  for (const version of ['2.0.0', '1.0.0', '0.9.0']) {
+    expect(await market.readEntryDetail(INDEX, 'from-npm', version, 'en')).toMatchObject({ origin: 'repository', markdown: '# Npm repository' })
+  }
   expect(await failureOf(market.readEntryDetail(INDEX, 'from-npm', '3.0.0', 'en')))
     .toMatchObject({ code: 'plugin-market/unknown-plugin', details: { name: 'from-npm', version: '3.0.0' } })
   expect(await failureOf(market.readEntryDetail(INDEX, 'absent', '1.0.0', 'en'))).toMatchObject({ code: 'plugin-market/unknown-plugin' })
   expect(await failureOf(market.readEntryDetail(INDEX, 'absent', '1.0.0', '!'))).toMatchObject({ code: 'plugin-market/invalid-query' })
-  serve({ [INDEX]: index, 'https://registry.npmmirror.com/from-npm/2.0.0/files/README.md': '# Mirror' })
-  const { market: mirrored } = await mount()
-  expect(await mirrored.readEntryDetail(INDEX, 'from-npm', '2.0.0', 'en', { npmFileSources: ['npmmirror'] })).toMatchObject({ markdown: '# Mirror' })
+  expect(new Set(requests.mock.calls.map(([url]) => new URL(url).host))).toEqual(new Set(['market.example', 'gitlab.example']))
 })
 
 it('reports unreadable sources as detail-unavailable and keeps other failures', async () => {
-  serve({ [INDEX]: index, 'https://cdn.jsdelivr.net/npm/from-npm@2.0.0/locale/en.json': new Error('offline') })
+  serve({ [INDEX]: index })
   const { market } = await mount()
   await market.search(INDEX, { sort: { kind: 'index' }, offset: 0, limit: 1 })
   vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
-  expect(await failureOf(market.readEntryDetail(INDEX, 'from-npm', '2.0.0', 'en')))
+  expect(await failureOf(market.readEntryDetail(INDEX, 'from-git', '1.0.0', 'en')))
     .toMatchObject({ code: 'plugin-market/detail-unavailable', details: { reason: 'network' } })
   const read = vi.spyOn(DetailReader.prototype, 'read').mockRejectedValueOnce(new TypeError('bug'))
   try {
-    await expect(market.readEntryDetail(INDEX, 'from-npm', '2.0.0', 'en')).rejects.toThrow('bug')
+    await expect(market.readEntryDetail(INDEX, 'from-git', '1.0.0', 'en')).rejects.toThrow('bug')
   } finally {
     read.mockRestore()
   }
@@ -158,8 +159,8 @@ it('reports unreadable sources as detail-unavailable and keeps other failures', 
 it('serves images beside a read document and maps failures to statuses', async () => {
   serve({
     [INDEX]: index,
-    [`https://raw.githubusercontent.com/o/r/${COMMIT}/pkg/README.md`]: '# Git ![a](a.png)',
-    [`https://raw.githubusercontent.com/o/r/${COMMIT}/pkg/a.png`]: 'png',
+    [gitlab('o/r', 'pkg/README.md', COMMIT)]: '# Git ![a](a.png)',
+    [gitlab('o/r', 'pkg/a.png', COMMIT)]: 'png',
   })
   const { market, routes } = await mount({ connection: true })
   const detail = await market.readEntryDetail(INDEX, 'from-git', '1.0.0', 'en')

@@ -38,7 +38,7 @@ function checkedTime(checkedAt: number): string {
   return `${pad(time.getHours())}:${pad(time.getMinutes())}`
 }
 
-/** The registry by name: npm's own and the mainland mirror by theirs, pnpm's own configuration as the default, any other by host. */
+/** The registry by name: npm's own by its name, pnpm's own configuration as the default, any other by host. */
 function registryName(registry: Registry, t: Translate): string {
   return registryText(registry, t, null).name
 }

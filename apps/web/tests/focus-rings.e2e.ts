@@ -211,26 +211,22 @@ async function compileFixture(): Promise<{ script: string; css: string }> {
     import ${source('ui-theme/src/styles/focus.css')}
     import ${source('ui-theme/src/styles/gradient-shadow-text.css')}
     import triggerCss from ${source('ui-permission-presets/src/client/PermissionSelect.module.css')}
-    import feedbackCss from ${source('ui-message-feedback/src/client/FeedbackDialog.module.css')}
     import workflowCss from ${source('ui-workflow-run/src/client/WorkflowRunPanel.module.css')}
     import cardCss from ${source('ui-primitives/src/HoverCard.module.css')}
     import pillCss from ${source('ui-primitives/src/Pill.module.css')}
     import trajectoryCss from ${source('ui-trajectory/src/client/TrajectoryTable.module.css')}
-    import onboardingCss from ${source('ui-settings-account/src/client/DesktopOnboarding.module.css')}
     function Fixture() {
       const [checked, setChecked] = useState(false)
       const [open, setOpen] = useState(false)
       return <main style={{ padding: 40, display: 'grid', gap: 24, width: 420 }}>
-        <div data-onboarding-card className={onboardingCss.card}>
-          <label><input type="checkbox" aria-label="Onboarding purpose" />Purpose</label>
-        </div>
         <Switch label="Toggle" checked={checked} onChange={setChecked} />
         <button id="default-outline">Default browser outline</button>
         <button id="outline-none" aria-label="Outline disabled" style={{ outline: 'none' }}>No outline</button>
         <Menu open={open} autoFocus onClose={() => setOpen(false)}
           anchor={<button className={triggerCss.trigger} onClick={() => setOpen(!open)}>Open menu</button>}
           items={[{ id: 'first', label: 'First item' }, { id: 'last', label: 'Last item' }]} />
-        <textarea aria-label="Feedback" className={feedbackCss.detail} />
+        <style>{'.fixture-text-input { display: block; width: 100%; min-height: 116px; box-sizing: border-box; padding: 12px 14px; border: 0.5px solid var(--dsw-alias-border-l4); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; } .fixture-text-input:focus { outline: none; border-color: var(--dsw-alias-border-l3); box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary); }'}</style>
+        <textarea aria-label="Text input" className="fixture-text-input" />
         <button aria-label="Workflow member" className={workflowCss.memberButton}>
           <span data-member-ring className={workflowCss.memberLabelWrap}>
             <span className={workflowCss.memberLabel}>Member</span>
@@ -338,23 +334,6 @@ describe('source-compiled supplementary focus paint', () => {
     return page
   }
 
-  it.each(['light', 'dark'])('keeps ancestor card rings silent after pointer input in %s mode', async (theme) => {
-    const page = await openFixture()
-    await page.evaluate(dark => document.body.toggleAttribute('data-ds-dark-theme', dark), theme === 'dark')
-    const checkbox = page.getByRole('checkbox', { name: 'Onboarding purpose' })
-    const card = page.locator('[data-onboarding-card]')
-    await checkbox.click()
-    await page.keyboard.press('Shift')
-    expect((await paint(checkbox)).active).toBe(true)
-    expect((await paint(card)).outlineStyle).toBe('none')
-    await page.keyboard.press('Tab')
-    await page.keyboard.press('Shift+Tab')
-    const ring = await paint(card)
-    expect((await paint(checkbox)).active).toBe(true)
-    expect(ring.outlineStyle).toBe('solid')
-    expect(ring.outline).toBe(ring.focusColor)
-  })
-
   it('keeps Shift/Escape silent while Tab, Home, End and paging reveal a blue outline', async () => {
     const page = await openFixture()
     const toggle = page.getByRole('switch', { name: 'Toggle' })
@@ -403,7 +382,7 @@ describe('source-compiled supplementary focus paint', () => {
 
   it('negative control: blanket shadow suppression destroys input and card paint and misses descendants', async () => {
     const page = await openFixture()
-    const input = page.getByRole('textbox', { name: 'Feedback' })
+    const input = page.getByRole('textbox', { name: 'Text input' })
     const card = page.getByRole('button', { name: 'Elevated card' })
     const elevation = (await paint(card)).shadow
     await input.click()
@@ -463,7 +442,7 @@ describe('source-compiled supplementary focus paint', () => {
 
   it('preserves clicked text-input paint and card elevation while suppressing descendant rings', async () => {
     const page = await openFixture()
-    const input = page.getByRole('textbox', { name: 'Feedback' })
+    const input = page.getByRole('textbox', { name: 'Text input' })
     await input.click()
     await page.keyboard.type('Still focused')
     await expect.poll(async () => {

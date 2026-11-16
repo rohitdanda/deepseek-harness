@@ -27,8 +27,6 @@
 - button "思考 The program ran successfully. Let me now reply DONE as instructed."
 - paragraph: DONE
 - button "コピー"
-- button "良い回答"
-- button "悪い回答"
 - button "新しい会話に分岐"
 - text: {{clock}}
 - textbox "メッセージを送信するかタスクを実行、/ コマンド、@ ファイルやセッション"

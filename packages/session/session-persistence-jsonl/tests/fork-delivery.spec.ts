@@ -9,6 +9,17 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 import { generationLogPath } from '../src/format.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
 
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    /** Historical marker from released logs, kept readable by the format migrations; no plugin writes it any more. */
+    'session-log-deepseek/delivery-accepted': {
+      sessionId: import('@deepseek-ai/dsh-session/types').SessionId
+      sessionFormatVersion?: number
+      throughSeq: import('@deepseek-ai/dsh-session/types').SessionSeq
+    }
+  }
+}
+
 async function fixture(compression: 'none' | 'zstd') {
   const root = await mkdtemp(join(tmpdir(), 'dsh-fork-delivery-'))
   const ctx = new Context()

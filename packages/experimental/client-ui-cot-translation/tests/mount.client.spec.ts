@@ -17,15 +17,14 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 const contribution: TypertRemoteContribution = { package: '@deepseek-ai/dsh-experimental-client-ui-cot-translation', descriptors: [] }
 const sourceSessionId = brandString<SessionId>('reasoning-source')
 
-async function fixture(failure = false, preferences: CotTranslationPreferences = { provider: 'bing', targetLanguage: 'auto' }) {
+async function fixture(failure = false, preferences: CotTranslationPreferences = { provider: 'deepseek-official', targetLanguage: 'auto' }) {
   const ctx = new Context(), unmount = vi.fn(async () => {})
   const listeners = new Map<string, Set<() => void>>()
-  let catalog: CotTranslationSnapshot = { maxTextChars: 12, availableProviders: ['bing', 'google'], preferences }
+  let catalog: CotTranslationSnapshot = { maxTextChars: 12, availableProviders: [], preferences }
   class TestRemote extends Service {
     constructor() { super(ctx, 'remote') }
     $on(event: string, listener: () => void) {
-      expect(['settings/document-updated', 'llm/adapters-updated', 'deepseek-account/session-expired',
-        'deepseek-account/model-sign-in-required', 'credentials/record-updated', 'credentials/reference-updated']).toContain(event)
+      expect(['settings/document-updated', 'llm/adapters-updated', 'credentials/record-updated', 'credentials/reference-updated']).toContain(event)
       let group = listeners.get(event)
       if (group === undefined) { group = new Set(); listeners.set(event, group) }
       group.add(listener)
@@ -68,7 +67,7 @@ function injectReasoning(entry: StoredEntry, sessionId: SessionId): Record<strin
   return inject(sessionId)
 }
 
-it.each(['bing', 'google'] as const)('binds %s requests to each reasoning Session and overrides a supplied source id', async (provider) => {
+it.each(['deepseek-official'] as const)('binds %s requests to each reasoning Session and overrides a supplied source id', async (provider) => {
   const b = await fixture(false, { provider, targetLanguage: 'ja' })
   try {
     const dispose = await mountTranslation(b.ctx, contribution)
@@ -100,13 +99,13 @@ it('registers translated reasoning and preferences, adopts accepted choices, and
     const body = injectReasoning(entry, sourceSessionId)
     bodyFace(body)
     expect(body.hooks.translationLimit.getSnapshot()).toBe(12)
-    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'bing', targetLanguage: 'auto' })
-    b.setCatalog({ maxTextChars: 12, availableProviders: ['bing', 'google'], preferences: { provider: 'bing', targetLanguage: 'ja' } })
-    b.scope.publish({ value: { provider: 'bing', targetLanguage: 'ja' } })
-    await vi.waitFor(() => { expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'bing', targetLanguage: 'ja' }) })
+    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'deepseek-official', targetLanguage: 'auto' })
+    b.setCatalog({ maxTextChars: 12, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'ja' } })
+    b.scope.publish({ value: { provider: 'deepseek-official', targetLanguage: 'ja' } })
+    await vi.waitFor(() => { expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'deepseek-official', targetLanguage: 'ja' }) })
     expect(b.ctx.slots.entries('plugins.bundle.config')[0]?.options).toMatchObject({ key: '@deepseek-ai/dsh-experimental-cot-translation-bundle' })
     expect(b.ctx.slots.entries('plugins.bundle.config')[0]!.inject!()).toHaveProperty('hooks.translationForm')
-    const request = { text: 'original', provider: 'bing' as const, targetLanguage: 'ja' }, signal = new AbortController().signal
+    const request = { text: 'original', provider: 'deepseek-official' as const, targetLanguage: 'ja' }, signal = new AbortController().signal
     expect(await body.translate(request, signal)).toBe('translated')
     b.translate.mockResolvedValueOnce({ ok: false, error: new RemoteError('cotTranslation/failed', 'request failed', {}) } as never)
     await expect(body.translate(request, signal)).rejects.toThrow('request failed')
@@ -147,8 +146,8 @@ it('loads the browser entry through its generated optional Remote contribution',
 })
 
 
-it('uses Host Google preferences while the settings form is loading', async () => {
-  const preferences: CotTranslationPreferences = { provider: 'google', targetLanguage: 'ja' }
+it('uses Host preferences while the settings form is loading', async () => {
+  const preferences: CotTranslationPreferences = { provider: 'deepseek-official', targetLanguage: 'ja' }
   const b = await fixture(false, preferences)
   try {
     const fiber = b.ctx.plugin({ inject: [...inject], apply: ctx => mountTranslation(ctx, contribution) })
@@ -158,7 +157,7 @@ it('uses Host Google preferences while the settings form is loading', async () =
     expect(body.hooks.preferences.getSnapshot()).toEqual(preferences)
     expect(b.scope.scope.getSnapshot().value).toBeUndefined()
     await body.translate({ text: 'original', ...body.hooks.preferences.getSnapshot() }, new AbortController().signal)
-    expect(b.translate).toHaveBeenCalledWith({ text: 'original', provider: 'google', targetLanguage: 'ja', sessionId: sourceSessionId }, expect.any(AbortSignal))
+    expect(b.translate).toHaveBeenCalledWith({ text: 'original', provider: 'deepseek-official', targetLanguage: 'ja', sessionId: sourceSessionId }, expect.any(AbortSignal))
   } finally { await b.ctx.fiber.dispose() }
 })
 
@@ -170,13 +169,13 @@ it('does not install a reasoning renderer before authoritative metadata arrives,
     await vi.waitFor(() => { expect(b.limits).toHaveBeenCalledOnce() })
     expect(b.ctx.slots.entries('conversation.chat.reasoning.body')).toHaveLength(0)
     expect(b.translate).not.toHaveBeenCalled()
-    b.setCatalog({ maxTextChars: 4, availableProviders: ['bing', 'google'], preferences: { provider: 'google', targetLanguage: 'ja' } })
+    b.setCatalog({ maxTextChars: 4, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'ja' } })
     b.invalidate()
-    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: ['bing', 'google'], preferences: { provider: 'bing', targetLanguage: 'auto' } } })
+    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'auto' } } })
     const dispose = await task
     const body = injectReasoning(b.ctx.slots.entries('conversation.chat.reasoning.body')[0]!, sourceSessionId)
     bodyFace(body)
-    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'google', targetLanguage: 'ja' })
+    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'deepseek-official', targetLanguage: 'ja' })
     expect(body.hooks.translationLimit.getSnapshot()).toBe(4)
     expect(b.limits).toHaveBeenCalledTimes(2)
     await dispose()
@@ -184,21 +183,21 @@ it('does not install a reasoning renderer before authoritative metadata arrives,
 })
 
 it('refreshes accepted Host preferences and limits on invalidation and reconnect without adopting drafts', async () => {
-  const b = await fixture(false, { provider: 'google', targetLanguage: 'ja' })
+  const b = await fixture(false, { provider: 'deepseek-official', targetLanguage: 'ja' })
   try {
     const dispose = await mountTranslation(b.ctx, contribution)
     const body = injectReasoning(b.ctx.slots.entries('conversation.chat.reasoning.body')[0]!, sourceSessionId)
     bodyFace(body)
     const form = b.ctx.slots.entries('plugins.bundle.config')[0]!.inject!()
     formFace(form)
-    form.edit('provider', 'bing')
-    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'google', targetLanguage: 'ja' })
-    b.setCatalog({ maxTextChars: 4, availableProviders: ['bing', 'google'], preferences: { provider: 'google', targetLanguage: 'ja' } })
+    form.edit('provider', 'deepseek-official')
+    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'deepseek-official', targetLanguage: 'ja' })
+    b.setCatalog({ maxTextChars: 4, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'ja' } })
     b.invalidate()
     await vi.waitFor(() => { expect(body.hooks.translationLimit.getSnapshot()).toBe(4) })
-    b.setCatalog({ maxTextChars: 8, availableProviders: ['bing', 'google'], preferences: { provider: 'bing', targetLanguage: 'zh' } })
+    b.setCatalog({ maxTextChars: 8, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'zh' } })
     b.ctx.emit('connection/reset')
-    await vi.waitFor(() => { expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'bing', targetLanguage: 'zh' }) })
+    await vi.waitFor(() => { expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'deepseek-official', targetLanguage: 'zh' }) })
     expect(body.hooks.translationLimit.getSnapshot()).toBe(8)
     await dispose()
   } finally { await b.ctx.fiber.dispose() }
@@ -215,7 +214,7 @@ it.each(['resolve', 'reject'] as const)('cancels setup, joins the pending read, 
     await vi.waitFor(() => { expect(querySignal.aborted).toBe(true) })
     expect(b.unmount).not.toHaveBeenCalled()
     if (outcome === 'resolve') pending.resolve({ ok: true,
-      value: { maxTextChars: 12, availableProviders: ['bing', 'google'], preferences: { provider: 'google', targetLanguage: 'ja' } } })
+      value: { maxTextChars: 12, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'ja' } } })
     else pending.reject(new Error('late metadata failure'))
     await disposing
     expect(b.ctx.slots.entries('conversation.chat.reasoning.body')).toHaveLength(0)
@@ -223,7 +222,7 @@ it.each(['resolve', 'reject'] as const)('cancels setup, joins the pending read, 
     expect(b.listeners.size).toBe(0)
     expect(b.unmount).toHaveBeenCalledOnce()
   } finally {
-    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: ['bing', 'google'], preferences: { provider: 'bing', targetLanguage: 'auto' } } })
+    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'auto' } } })
     await b.ctx.fiber.dispose()
   }
 })
@@ -237,19 +236,19 @@ it('holds new fragments during metadata refresh and rejects stale routing or lim
     bodyFace(body)
     b.limits.mockImplementationOnce(() => pending.promise)
     b.invalidate()
-    const stale = body.translate({ text: 'private', provider: 'bing', targetLanguage: 'zh' }, new AbortController().signal)
+    const stale = body.translate({ text: 'private', provider: 'deepseek-official', targetLanguage: 'zh' }, new AbortController().signal)
     expect(b.translate).not.toHaveBeenCalled()
-    pending.resolve({ ok: true, value: { maxTextChars: 4, availableProviders: ['bing', 'google'], preferences: { provider: 'google', targetLanguage: 'ja' } } })
+    pending.resolve({ ok: true, value: { maxTextChars: 4, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'ja' } } })
     await expect(stale).rejects.toThrow('changed')
-    await expect(body.translate({ text: 'private', provider: 'google', targetLanguage: 'ja' }, new AbortController().signal))
+    await expect(body.translate({ text: 'private', provider: 'deepseek-official', targetLanguage: 'ja' }, new AbortController().signal))
       .rejects.toThrow('changed')
-    await expect(body.translate({ text: 'word', provider: 'google', targetLanguage: 'zh' }, new AbortController().signal))
+    await expect(body.translate({ text: 'word', provider: 'deepseek-official', targetLanguage: 'zh' }, new AbortController().signal))
       .rejects.toThrow('changed')
     expect(b.translate).not.toHaveBeenCalled()
-    expect(await body.translate({ text: 'word', provider: 'google', targetLanguage: 'ja' }, new AbortController().signal)).toBe('translated')
+    expect(await body.translate({ text: 'word', provider: 'deepseek-official', targetLanguage: 'ja' }, new AbortController().signal)).toBe('translated')
     await dispose()
   } finally {
-    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: ['bing', 'google'], preferences: { provider: 'bing', targetLanguage: 'auto' } } })
+    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'auto' } } })
     await b.ctx.fiber.dispose()
   }
 })
@@ -263,14 +262,14 @@ it('rechecks the caller abort after a held metadata query completes', async () =
     b.limits.mockImplementationOnce(() => pending.promise)
     b.invalidate()
     const caller = new AbortController(), reason = new Error('cancelled before dispatch')
-    const translated = body.translate({ text: 'private', provider: 'bing', targetLanguage: 'zh' }, caller.signal)
+    const translated = body.translate({ text: 'private', provider: 'deepseek-official', targetLanguage: 'zh' }, caller.signal)
     caller.abort(reason)
-    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: ['bing', 'google'], preferences: { provider: 'bing', targetLanguage: 'auto' } } })
+    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'auto' } } })
     await expect(translated).rejects.toBe(reason)
     expect(b.translate).not.toHaveBeenCalled()
     await dispose()
   } finally {
-    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: ['bing', 'google'], preferences: { provider: 'bing', targetLanguage: 'auto' } } })
+    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'auto' } } })
     await b.ctx.fiber.dispose()
   }
 })
@@ -295,7 +294,7 @@ it.each(['throw', 'refuse'] as const)('does not submit after a %s metadata refre
     if (outcome === 'throw') b.limits.mockRejectedValueOnce(new Error('metadata unavailable'))
     else b.limits.mockResolvedValueOnce({ ok: false, error: new RemoteError('cotTranslation/failed', 'metadata unavailable', {}) })
     b.invalidate()
-    const request = { text: 'private', provider: 'bing' as const, targetLanguage: 'zh' }, signal = new AbortController().signal
+    const request = { text: 'private', provider: 'deepseek-official' as const, targetLanguage: 'zh' }, signal = new AbortController().signal
     await expect(body.translate(request, signal)).rejects.toThrow('changed')
     expect(b.translate).not.toHaveBeenCalled()
     expect(await body.translate(request, signal)).toBe('translated')
@@ -316,16 +315,16 @@ it.each(['resolve', 'reject'] as const)('joins an in-flight refresh and excludes
     await vi.waitFor(() => { expect(signal.aborted).toBe(true) })
     expect(b.unmount).not.toHaveBeenCalled()
     if (outcome === 'resolve') pending.resolve({ ok: true,
-      value: { maxTextChars: 4, availableProviders: ['bing', 'google'], preferences: { provider: 'google', targetLanguage: 'ja' } } })
+      value: { maxTextChars: 4, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'ja' } } })
     else pending.reject(new Error('late refresh failure'))
     await disposing
-    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'bing', targetLanguage: 'auto' })
+    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'deepseek-official', targetLanguage: 'auto' })
     expect(body.hooks.translationLimit.getSnapshot()).toBe(12)
-    await expect(body.translate({ text: 'private', provider: 'bing', targetLanguage: 'zh' }, new AbortController().signal))
+    await expect(body.translate({ text: 'private', provider: 'deepseek-official', targetLanguage: 'zh' }, new AbortController().signal))
       .rejects.toThrow('changed')
     expect(b.unmount).toHaveBeenCalledOnce()
   } finally {
-    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: ['bing', 'google'], preferences: { provider: 'bing', targetLanguage: 'auto' } } })
+    pending.resolve({ ok: true, value: { maxTextChars: 12, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'auto' } } })
     await b.ctx.fiber.dispose()
   }
 })
@@ -342,12 +341,12 @@ it('retains an invalidation raised synchronously while a refreshed snapshot is b
     unsubscribe = body.hooks.preferences.subscribe(() => {
       if (invalidated) return
       invalidated = true
-      b.setCatalog({ maxTextChars: 4, availableProviders: ['bing', 'google'], preferences: { provider: 'bing', targetLanguage: 'ja' } })
+      b.setCatalog({ maxTextChars: 4, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'ja' } })
       b.invalidate()
     })
-    b.setCatalog({ maxTextChars: 8, availableProviders: ['bing', 'google'], preferences: { provider: 'google', targetLanguage: 'ja' } })
+    b.setCatalog({ maxTextChars: 8, availableProviders: [], preferences: { provider: 'deepseek-official', targetLanguage: 'ja' } })
     b.invalidate()
-    await vi.waitFor(() => { expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'bing', targetLanguage: 'ja' }) })
+    await vi.waitFor(() => { expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'deepseek-official', targetLanguage: 'ja' }) })
     expect(body.hooks.translationLimit.getSnapshot()).toBe(4)
     expect(b.limits).toHaveBeenCalledTimes(3)
     await dispose()
@@ -355,10 +354,10 @@ it('retains an invalidation raised synchronously while a refreshed snapshot is b
 })
 
 
-it('advertises eligible paid routes without changing Bing selection or sending a translation', async () => {
+it('advertises eligible paid routes without changing the selection or sending a translation', async () => {
   const b = await fixture()
-  b.setCatalog({ maxTextChars: 12, availableProviders: ['bing', 'google', 'deepseek-account', 'deepseek-official'],
-    preferences: { provider: 'bing', targetLanguage: 'auto' } })
+  b.setCatalog({ maxTextChars: 12, availableProviders: ['deepseek-official'],
+    preferences: { provider: 'deepseek-official', targetLanguage: 'auto' } })
   try {
     const dispose = await mountTranslation(b.ctx, contribution)
     const settings = b.ctx.slots.entries('plugins.bundle.config')[0]!.inject!()
@@ -366,16 +365,16 @@ it('advertises eligible paid routes without changing Bing selection or sending a
     expect(settings.hooks).toBeTruthy()
     const body = injectReasoning(b.ctx.slots.entries('conversation.chat.reasoning.body')[0]!, brandString<SessionId>('reasoning-session'))
     bodyFace(body)
-    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'bing', targetLanguage: 'auto' })
+    expect(body.hooks.preferences.getSnapshot()).toEqual({ provider: 'deepseek-official', targetLanguage: 'auto' })
     expect(b.translate).not.toHaveBeenCalled()
     await dispose()
   } finally { await b.ctx.fiber.dispose() }
 })
 
-it.each(['deepseek-account', 'deepseek-official'] as const)('binds selected paid route %s and delegates unavailable cache lookup to the Host', async (provider) => {
+it.each(['deepseek-official'] as const)('binds selected paid route %s and delegates unavailable cache lookup to the Host', async (provider) => {
   const b = await fixture(false, { provider, targetLanguage: 'auto' })
   const catalog: CotTranslationSnapshot = { maxTextChars: 12,
-    availableProviders: ['bing', 'google', 'deepseek-account', 'deepseek-official'], preferences: { provider, targetLanguage: 'auto' } }
+    availableProviders: ['deepseek-official'], preferences: { provider, targetLanguage: 'auto' } }
   b.setCatalog(catalog)
   try {
     const dispose = await mountTranslation(b.ctx, contribution)
@@ -388,7 +387,7 @@ it.each(['deepseek-account', 'deepseek-official'] as const)('binds selected paid
     expect(b.translate).toHaveBeenCalledWith({ text: 'original', provider, targetLanguage: 'zh', sessionId }, expect.any(AbortSignal))
     await body.translate({ text: 'another', provider, targetLanguage: 'zh' }, new AbortController().signal)
     expect(b.limits).toHaveBeenCalledOnce()
-    b.setCatalog({ ...catalog, availableProviders: ['bing', 'google'] })
+    b.setCatalog({ ...catalog, availableProviders: [] })
     b.emitEvent('credentials/record-updated')
     expect(await body.translate({ text: 'original', provider, targetLanguage: 'zh' }, new AbortController().signal)).toBe('translated')
     expect(b.translate).toHaveBeenCalledTimes(3)
@@ -397,16 +396,16 @@ it.each(['deepseek-account', 'deepseek-official'] as const)('binds selected paid
   } finally { await b.ctx.fiber.dispose() }
 })
 
-it.each(['llm/adapters-updated', 'deepseek-account/session-expired', 'deepseek-account/model-sign-in-required',
+it.each(['llm/adapters-updated',
   'credentials/record-updated', 'credentials/reference-updated'])('refreshes eligibility when %s is forwarded', async (event) => {
   const b = await fixture()
   try {
     const dispose = await mountTranslation(b.ctx, contribution)
     const settings = b.ctx.slots.entries('plugins.bundle.config')[0]!.inject!()
     const hooks = settings.hooks as { availableProviders: { getSnapshot: () => readonly string[] } }
-    expect(hooks.availableProviders.getSnapshot()).toEqual(['bing', 'google'])
-    b.setCatalog({ maxTextChars: 12, availableProviders: ['bing', 'google', 'deepseek-official'],
-      preferences: { provider: 'bing', targetLanguage: 'auto' } })
+    expect(hooks.availableProviders.getSnapshot()).toEqual([])
+    b.setCatalog({ maxTextChars: 12, availableProviders: ['deepseek-official'],
+      preferences: { provider: 'deepseek-official', targetLanguage: 'auto' } })
     b.emitEvent(event)
     await vi.waitFor(() => { expect(hooks.availableProviders.getSnapshot()).toContain('deepseek-official') })
     expect(b.translate).not.toHaveBeenCalled()

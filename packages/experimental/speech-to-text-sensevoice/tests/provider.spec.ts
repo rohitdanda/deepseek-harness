@@ -1,4 +1,5 @@
 /** Provider activation remains lazy and rejects relative deployment paths. */
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocess from '@deepseek-ai/dsh-subprocess-local'
 import SpeechToText from '@deepseek-ai/dsh-experimental-speech-to-text'
@@ -14,9 +15,7 @@ it.each(['int8', 'fp32'] as const)('registers %s lazily and joins inference befo
     await ctx.plugin(LocalSubprocess)
     await ctx.plugin(SpeechToText, { defaultProvider: 'sensevoice-local', language: 'auto' })
     const transcribe = vi.spyOn(SenseVoiceWorker.prototype, 'transcribe')
-    const fiber = ctx.plugin(Provider, { dataRoot: process.cwd(), precision,
-      ...precision === 'fp32' ? { modelOrigin: 'https://private.example' } : {},
-    })
+    const fiber = ctx.plugin(Provider, { dataRoot: process.cwd(), modelDirectory: process.cwd(), vadModelPath: join(process.cwd(), 'silero_vad.onnx'), precision })
     await fiber
     expect(transcribe).not.toHaveBeenCalled()
     const speech = ctx.get('speechToText')!
@@ -33,17 +32,16 @@ it.each(['int8', 'fp32'] as const)('registers %s lazily and joins inference befo
   } finally { await ctx.fiber.dispose() }
 })
 
-it('refuses relative runtime, model and cache paths before registration', () => {
+const absolute = { dataRoot: process.cwd(), modelDirectory: process.cwd(), vadModelPath: join(process.cwd(), 'silero_vad.onnx') }
+
+it('refuses relative runtime and model paths before registration', () => {
   for (const field of ['dataRoot', 'modelDirectory', 'vadModelPath']) {
-    expect(() => { Provider.apply(new Context(), Provider.Config({ dataRoot: process.cwd(), [field]: 'relative' })) })
+    expect(() => { Provider.apply(new Context(), Provider.Config({ ...absolute, [field]: 'relative' })) })
       .toThrow('absolute')
   }
-  expect(() => Provider.Config({ dataRoot: process.cwd(), threads: 0 })).toThrow()
+  expect(() => Provider.Config({ ...absolute, threads: 0 })).toThrow()
 })
 
-it.each([
-  { modelOrigins: [] }, { modelOrigins: ['https://example.com/path'] }, { modelOrigins: ['https://user:secret@example.com'] },
-  { modelOrigin: 'file:///models' }, { modelProbeTimeoutMs: 0 }, { modelProbeTimeoutMs: 2_147_483_648 },
-])('rejects invalid download source configuration %j', (config) => {
-  expect(() => Provider.Config({ dataRoot: process.cwd(), ...config })).toThrow()
+it.each(['modelDirectory', 'vadModelPath'])('requires an explicit %s because no model is downloaded', (field) => {
+  expect(() => Provider.Config({ ...absolute, [field]: undefined })).toThrow()
 })

@@ -28,7 +28,7 @@ import type { PluginHeaderLayoutFace } from './header-scroll.ts'
 import { rowConfigKey, type OfficialItem } from './config-ledger.ts'
 import { INSTALL_GIT_EXAMPLE, INSTALL_PATH_EXAMPLE, type PluginManagerLocaleKey } from './locales.ts'
 import {
-  bundleBusy, asksMirror, githubRecoveryRegistry, isInstallPending, offeredRegistries, rowKey, updateCandidate,
+  bundleBusy, isInstallPending, offeredRegistries, rowKey, updateCandidate,
   type InstallInputError, type InstallState, type InstallSubject, type PackageRow, type PackageView,
   type PluginManagerFace, type PluginManagerState, type RegistryChoice, type VersionCheck,
 } from './manager-store.ts'
@@ -1036,7 +1036,7 @@ function useInstallComposition(active: boolean) {
  */
 function InstallDialog({
   install, t, onClose, onEditSpec, onRun, onCancel, onReconcile, onToggleDetails, onEnableNow, onApproveBuilds,
-  onToggleRegistry, onChooseRegistry, onChangeRegistry, onUseGithubMirror,
+  onToggleRegistry, onChooseRegistry, onChangeRegistry,
 }: {
   readonly install: InstallState
   readonly t: Translate
@@ -1052,7 +1052,6 @@ function InstallDialog({
   readonly onChooseRegistry: (choice: RegistryChoice) => void
   /** From the failed screen: back to the spec with the registry options unfolded. */
   readonly onChangeRegistry: () => void
-  readonly onUseGithubMirror: () => void
 }): ReactNode {
   const errorId = useId()
   const templateHintId = useId()
@@ -1088,34 +1087,6 @@ function InstallDialog({
     document.addEventListener('keydown', onKeyDown, true)
     return () => { document.removeEventListener('keydown', onKeyDown, true) }
   }, [registryShown, onToggleRegistry])
-  if (githubRecoveryRegistry(install) !== undefined) {
-    const anotherWay = asksMirror(install)
-    return (
-      <Modal
-        open={install.open}
-        onClose={onClose}
-        title={t(install.failure?.kind === 'timeout' ? 'installGithubTimeoutTitle' : 'installGithubFailedTitle')}
-        closeLabel={t('close')}
-        description={t('installGithubFailedDescription')}
-        footer={(
-          <>
-            <Button variant="outline" onClick={onClose}>{t('cancel')}</Button>
-            <Button
-              variant="primary"
-              autoFocus
-              onClick={() => {
-                // The mirror is already asked, so the form opens with the package-name guide.
-                if (anotherWay) setGuideOpen(true)
-                onUseGithubMirror()
-              }}
-            >
-              {t(anotherWay ? 'installTryAnotherWay' : 'installUseGithubMirror')}
-            </Button>
-          </>
-        )}
-      />
-    )
-  }
   if ((phase === 'idle' || phase === 'checking') && install.confirmed !== undefined) {
     // A confirmed spec has no form to return to: the dialog names the plugin and version above the spec, with its
     // check, a refusal with a retry, or, after a cancelled run, Install.
@@ -1164,7 +1135,7 @@ function InstallDialog({
         onClose={onClose}
         title={t('installTitle')}
         closeLabel={t('close')}
-        {...install.mirrorRecovery ? {} : { description: t('installDescription') }}
+        description={t('installDescription')}
         className={css.installDialog as string}
         contentClassName={css.installContent as string}
         footer={(
@@ -1187,12 +1158,11 @@ function InstallDialog({
           <div className={css.installField}>
             <input
               type="text"
-              autoFocus={install.mirrorRecovery === true}
               data-modal-autofocus
               value={install.spec}
               placeholder={t('installSpecPlaceholder')}
               disabled={checking}
-              aria-label={t(install.mirrorRecovery ? 'installPackageLabel' : 'installSpecLabel')}
+              aria-label={t('installSpecLabel')}
               aria-invalid={install.inputError !== null}
               aria-describedby={inputSentence !== null ? errorId : templateHint !== null ? templateHintId : undefined}
               onChange={(event) => { onEditSpec(event.currentTarget.value) }}
@@ -1822,7 +1792,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
               renderSlot={renderSlot}
               inMore={backToMore}
               detail={(
-                <BundleDetailSection name={openPkg.name} version={openPkg.version} fromNpm={openPkg.availability === 'missing'}
+                <BundleDetailSection name={openPkg.name} version={openPkg.version}
                   language={language} details={bundleDetails} t={t}
                   load={props.loadDetail} retry={props.retryDetail} image={props.detailImage} />
               )}
@@ -1909,7 +1879,6 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
         onToggleRegistry={props.toggleRegistryOptions}
         onChooseRegistry={props.chooseRegistry}
         onChangeRegistry={props.changeRegistry}
-        onUseGithubMirror={props.useGithubMirror}
       />
       {state.confirm === null
         ? null

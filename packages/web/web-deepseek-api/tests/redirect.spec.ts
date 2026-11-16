@@ -55,17 +55,6 @@ describe('dispatchDeepSeekWeb redirect policy', () => {
     expect(targetRequests).toHaveLength(0)
   })
 
-  it('rejects a redirect of an account-token request before contacting Location', async () => {
-    targetRequests.length = 0
-    await expect(dispatchDeepSeekWeb({ sources: [{
-      kind: 'account', baseURL: redirectOrigin, resolveToken: async () => 'redirect-test-token', rejectToken: async () => {},
-    }] }, {
-      path: '/307', body: { query: TEST_QUERY }, decode: value => value,
-      guidance: customGuidance('search'),
-    })).rejects.toMatchObject({ code: 'WEB_PROVIDER_ERROR' })
-    expect(targetRequests).toHaveLength(0)
-  })
-
   it('shows default 307 following forwards the custom credential and POST body', async () => {
     targetRequests.length = 0
     const body = JSON.stringify({ query: TEST_QUERY })

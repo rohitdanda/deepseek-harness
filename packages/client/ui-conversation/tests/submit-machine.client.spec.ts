@@ -252,7 +252,6 @@ describe('submit-machine: claimed lifecycle', () => {
 
   it.each([
     ['goal', '/goal '], ['goal', '/目标 '], ['plan', '/plan '], ['plan', '/计划 '],
-    ['feedback', '/feedback '], ['feedback', '/反馈 '],
   ])('submits %s claimed as %s without its separator with an empty argument', (name, token) => {
     const m = new SubmitMachine()
     const claim = { ...claimOf(name), token }

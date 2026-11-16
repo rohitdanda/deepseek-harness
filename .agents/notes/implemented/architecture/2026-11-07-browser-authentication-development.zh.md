@@ -87,15 +87,13 @@ HTTP handler 接收 `(req, res, peer?)`，upgrade handler 接收 `(req, socket, 
 
 | 事件 | 模式 | 最终接线 |
 |---|---|---|
-| `webserver/request` | waterfall | 在路由选择前执行；Token 处理根 Token query 交换，账号插件处理经过校验的 OAuth 回调 |
+| `webserver/request` | waterfall | 在路由选择前执行；Token 处理根 Token query 交换 |
 | `webserver/authorize` | bail | 判断已匹配路由的来源与凭据准入，采用首个决策 |
 | `webserver/upgrade` | waterfall | 在准入后、协议 handler 前执行，携带已选定的 Peer |
 | `webserver/index-inject` | emit | 在服务器隔离范围内，为传入 Peer 收集页面或 Worker 启动数据 |
 | `webserver/entry-url` | emit | 在服务器隔离范围内，为传入基地址收集完整入口 URL |
 
 Waterfall 监听器处理请求时拥有响应或 Socket，否则等待 `next()`。异常由载体容纳，并结束对应响应或 Socket。为支持登录协议，不会对所有匿名路由关闭来源策略。
-
-账号插件在通用准入前注册临时回调监听器。它匹配发起登录时 redirect URI 的 authority 和精确路径，再保留 GET、单值 state/code、常量时间 state 比较、活动尝试检查、有效期、取消和 S256 PKCE。因此合法跨站浏览器返回可以完成，而不绕过这些校验，也不放宽无关匿名路由。监听器随尝试结束而移除，不导入 WebServer 实体辅助函数。
 
 ### Socket 策略归凭据签发产品
 
@@ -118,7 +116,6 @@ Desktop 父进程为每个 Host 进程持有新私有凭据，并在 ready 前�
 | Provider 注册 | 只有内置 BrowserAuth 提供网络身份 | 有序独立验证器选择一个存活 Peer；[认证测试](../../../../packages/client/connection/tests/authentication.host.spec.ts)覆盖作用域卸载、验证故障和取消 |
 | HTTP 与 upgrade 接入 | 消费者调用 Connection 准入 | 路由 auth 一次提供 Peer；真实 [Provider 传输测试](../../../../packages/api/gateway/tests/authentication-provider.host.spec.ts)覆盖两种载体 |
 | 服务器隔离 | 路由表按实例持有，index 注入覆盖 root | 五个事件均使用 WebServer subject；[服务器](../../../../packages/host/webserver/tests/event-isolation.host.spec.ts)和[应用](../../../../packages/bundle/web-app/tests/event-isolation.host.spec.ts)测试覆盖普通／global 监听器及保留的外部 Host |
-| 浏览器 OAuth 返回 | 回调校验 state 与 PKCE | 有作用域的前置回调保留校验，并接受真实跨站导航；[账号测试](../../../../packages/credentials/deepseek-account/tests/account.spec.ts)保留错误 Host 和 SSH 转发覆盖，[Chromium](../../../../apps/web/tests/account-login.e2e.ts)断言实际 Fetch Metadata header |
 | 启动输出 | WebApp 打印／打开一个 Connection 生成的登录 URL | [启动测试](../../../../packages/bundle/web-app/tests/startup.host.spec.ts)覆盖按序入口、首个可打开项、空列表、就绪和 SSH 抑制 |
 | Desktop runtime 消费者 | 以带 Token 的 ready URL 交换 Cookie | [Runtime smoke 测试](../../../../apps/desktop/tests/smoke-runtime.spec.ts)在 HTTP 探针中使用私有 Cookie；[产物 Remote 测试](../../../../packages/api/remotes/tests/built-lib.e2e.ts)收集当前 Provider 入口，并传递准入 Peer |
 

@@ -9,9 +9,6 @@
   ],
   "references": [
     {
-      "path": "../product-analytics/tsconfig.client.json"
-    },
-    {
       "path": "../locale/tsconfig.client.json"
     },
     {
@@ -30,7 +27,7 @@
       "path": "../ui-primitives"
     },
     {
-      "path": "../ui-plugin-manager/tsconfig.client.json"
+      "path": "../ui-plugin-manager"
     },
     {
       "path": "../ui-renderer"

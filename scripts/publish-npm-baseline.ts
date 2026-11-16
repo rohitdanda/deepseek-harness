@@ -19,7 +19,6 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { discoverNpmBaselineManifests } from './npm-baseline-packages.ts'
 
-const DEFAULT_REGISTRY = 'https://registry.npm.harnessment.com'
 const DEFAULT_OUTPUT_DIRECTORY = '.artifacts/npm-baseline'
 const DEPENDENCY_SECTIONS = [
   'dependencies',
@@ -901,7 +900,6 @@ function installedArtifactEnvironment(consumerRoot: string): NodeJS.ProcessEnv {
   delete environment.NODE_PATH
   environment.DSH_HOME = resolve(consumerRoot, '.dsh')
   environment.DSH_AGENTS_HOME = resolve(consumerRoot, '.agents')
-  environment.DSH_TELEMETRY_DISABLED = '1'
   environment.DEEPSEEK_API_KEY = 'keyless-installed-web-no-call'
   environment.LANG = 'en_US.UTF-8'
   environment.LC_ALL = 'en_US.UTF-8'
@@ -998,7 +996,7 @@ function printUsage(): void {
 
 Pack/release options:
   --ref <git-ref>       Git commit to stage (default: HEAD)
-  --registry <url>      npm registry (default: ${DEFAULT_REGISTRY})
+  --registry <url>      npm registry to pack for and publish to (required)
   --output-dir <path>   Artifact root (default: ${DEFAULT_OUTPUT_DIRECTORY})
   --yes                 pack/release without waiting for Enter`)
 }
@@ -1021,12 +1019,13 @@ async function main(): Promise<void> {
       args: process.argv.slice(3),
       options: {
         ref: { type: 'string', default: 'HEAD' },
-        registry: { type: 'string', default: DEFAULT_REGISTRY },
+        registry: { type: 'string' },
         'output-dir': { type: 'string', default: resolve(repositoryRoot, DEFAULT_OUTPUT_DIRECTORY) },
         yes: { type: 'boolean', default: false },
       },
       strict: true,
     })
+    if (values.registry === undefined) throw new Error('--registry <url> is required')
     const packager = new BaselinePackager(repositoryRoot, runner)
     const plan = packager.plan({
       ref: values.ref,

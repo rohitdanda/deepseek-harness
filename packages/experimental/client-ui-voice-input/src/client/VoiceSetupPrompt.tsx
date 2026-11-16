@@ -11,7 +11,7 @@ export type VoiceSetupPromptProps = PropsRuntime<'plugins.bundle.activation'> & 
   & Pick<InjectFace<VoiceInputInjected>, 'useSpeechReadiness'>
 
 /**
- * Offer navigation to installation without starting a download.
+ * Offer navigation to setup without starting preparation.
  * @param props - activation navigation and the shared Host readiness observer.
  * @returns the shared modal only when the selected local provider needs preparation.
  */

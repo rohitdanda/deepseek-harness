@@ -105,8 +105,8 @@ it('withdraws its Remote, localized slot and microphone captures on disposal', a
     const dispose = vi.spyOn(pending, 'dispose')
     await actions.configure({ language: 'zh' })
     await actions.prepare('local' as SpeechProviderId)
-    await actions.prepare('local' as SpeechProviderId, { downloadSource: 'https://hf-mirror.com' })
-    expect(b.prepare).toHaveBeenLastCalledWith('local', { downloadSource: 'https://hf-mirror.com' })
+    await actions.prepare('local' as SpeechProviderId)
+    expect(b.prepare).toHaveBeenLastCalledWith('local')
     await actions.cancelPreparation('local' as SpeechProviderId)
     for (const slot of ['plugins.bundle.config', 'plugins.bundle.activation'] as const) {
       const item = b.ctx.slots.entries(slot)[0]!
